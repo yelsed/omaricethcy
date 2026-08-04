@@ -1,0 +1,2 @@
+# omaricethcy
+My omarchy rice
