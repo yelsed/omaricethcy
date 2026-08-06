@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""Add the Omarchy 4 layer to a theme, without breaking it on Omarchy 3.
+
+    omaricethcy-omarchy4            every theme
+    omaricethcy-omarchy4 goud       one theme
+    omaricethcy-omarchy4 --check    report what would change, write nothing
+
+Omarchy 4 rewrote three things this rice depends on:
+
+  colors.toml   color0..color15 gave way to semantic names (red, lighter_background,
+                bright_foreground, ...). Omarchy 4 still reads the old names, but
+                only as a fallback, and two of its fallbacks are lossy for us.
+  hyprland      hyprlang (*.conf) gave way to Hyprland's own Lua config, so a theme
+                ships hyprland.lua where it used to ship hyprland.conf.
+  the shell     waybar, walker, mako, swayosd and hyprlock were replaced by one
+                built-in shell, configured through shell.toml. A theme overrides a
+                single section of it by shipping shell.<section>.toml.
+
+This writes the Omarchy 4 files alongside the Omarchy 3 ones rather than in place
+of them. Omarchy 3 ignores the new files and Omarchy 4 ignores the old ones, so a
+theme directory works under both and the machine can be upgraded whenever.
+
+Colours are read back out of the theme's existing colors.toml rather than derived
+from a seed, so hand-authored themes whose ramp shifts hue (gloed) migrate as
+faithfully as generated ones (goud).
+"""
+
+import argparse
+import pathlib
+import re
+import sys
+
+REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
+
+# Omarchy 4 fills a missing semantic name from the legacy ANSI slot listed here.
+# Writing the names out explicitly rather than leaning on that fallback is the
+# point of the migration: the fallback is upstream's compatibility shim and is
+# free to change, whereas a name the theme states itself is not.
+FROM_ANSI = {
+    "red": "color1",
+    "green": "color2",
+    "yellow": "color3",
+    "blue": "color4",
+    "magenta": "color5",
+    "cyan": "color6",
+    "bright_red": "color9",
+    "bright_green": "color10",
+    "bright_yellow": "color11",
+    "bright_blue": "color12",
+    "bright_magenta": "color13",
+    "bright_cyan": "color14",
+    "bright_foreground": "color15",
+    "dark_foreground": "color8",
+    "muted": "color8",
+}
+
+# Two of Omarchy 4's own fallbacks overwrite rather than fill, and both cost this
+# rice something, so the migration states these names itself:
+#
+#   lighter_background  falls back to color0, but color0 is first overwritten with
+#                       background — panels and dividers would flatten into the
+#                       background instead of lifting off it.
+#   light_foreground    falls back to color7, likewise overwritten with foreground —
+#                       the dim foreground would stop being dim.
+#
+# A third, cursor, is assigned unconditionally from bright_foreground and cannot be
+# set from a theme at all. The accent-coloured cursor does not survive Omarchy 4;
+# nothing here can change that.
+FROM_ANSI_OVERWRITTEN = {
+    "lighter_background": "color0",
+    "light_foreground": "color7",
+}
+
+HEADER = "# --- Omarchy 4 semantic palette"
+
+
+def parse_colors(path):
+    """Read colors.toml the way Omarchy does: flat key = "value", no TOML parser."""
+    colors = {}
+    pattern = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]*)"')
+    for line in path.read_text().splitlines():
+        match = pattern.match(line)
+        if match:
+            colors[match.group(1)] = match.group(2)
+    return colors
+
+
+def mix(start, end, amount):
+    """Blend two hex colours. Matches Omarchy's mix_color rounding exactly, so a
+    value written here is identical to the one Omarchy would have derived."""
+    start_channels = [int(start.lstrip("#")[index:index + 2], 16) for index in (0, 2, 4)]
+    end_channels = [int(end.lstrip("#")[index:index + 2], 16) for index in (0, 2, 4)]
+    blended = (
+        int(first * (1 - amount) + second * amount + 0.5)
+        for first, second in zip(start_channels, end_channels)
+    )
+    return "#" + "".join(f"{channel:02x}" for channel in blended)
+
+
+def theme_mode(background):
+    """Omarchy 4 guesses this from the background when a theme does not say. Same
+    rule here, so stating it changes nothing except making it explicit."""
+    channels = sum(int(background.lstrip("#")[index:index + 2], 16) for index in (0, 2, 4))
+    return "light" if channels > 382 else "dark"
+
+
+def semantic_palette(colors):
+    """The Omarchy 4 palette this theme's Omarchy 3 palette describes."""
+    background = colors["background"]
+    foreground = colors["foreground"]
+
+    palette = {
+        "mode": theme_mode(background),
+        "accent": colors["accent"],
+        "selection": colors.get("selection_background", background),
+        "background": background,
+        "foreground": foreground,
+        # Omarchy derives these two from the background; deriving them the same way
+        # keeps the file honest about being a restatement, not a redesign.
+        "dark_background": mix(background, "#000000", 0.25),
+        "darker_background": mix(background, "#000000", 0.50),
+    }
+    for name, slot in {**FROM_ANSI, **FROM_ANSI_OVERWRITTEN}.items():
+        palette[name] = colors[slot]
+
+    # Omarchy defaults orange to yellow, which in both themes here is the accent
+    # itself — a token that resolves to the accent is no use to anything wanting a
+    # warmer step. color4 is that step in a warm ramp.
+    palette["orange"] = colors["color4"]
+    palette["brown"] = mix(palette["orange"], "#000000", 0.50)
+    return palette
+
+
+def colors_toml(colors, palette):
+    """Both palettes in one file, Omarchy 4's first because it is the canonical one."""
+    def block(*names):
+        return "\n".join(f'{name:<19}= "{palette[name]}"' for name in names)
+
+    legacy = "\n".join(
+        f'{name:<21}= "{colors[name]}"'
+        for name in ("cursor", "selection_foreground", "selection_background")
+    )
+    ansi = "\n".join(f'color{index:<3}= "{colors[f"color{index}"]}"' for index in range(16))
+
+    return f"""# Omarchy 4 reads the semantic names; Omarchy 3 reads the ANSI slots below them.
+# Both are written out and kept consistent by bin/omaricethcy-omarchy4 — do not
+# edit one half without rerunning it.
+
+{HEADER} ---------------------------------------------
+{block("mode")}
+
+{block("accent", "selection", "muted")}
+
+{block("background", "dark_background", "darker_background", "lighter_background")}
+
+{block("foreground", "dark_foreground", "light_foreground", "bright_foreground")}
+
+{block("red", "yellow", "orange", "green", "cyan", "blue", "magenta", "brown")}
+
+{block("bright_red", "bright_yellow", "bright_green", "bright_cyan",
+       "bright_blue", "bright_magenta")}
+
+# --- Omarchy 3 palette ------------------------------------------------------
+# cursor is read by Omarchy 3 only. Omarchy 4 assigns the cursor from
+# bright_foreground unconditionally, so the accent-coloured cursor ends there.
+{legacy}
+
+{ansi}
+"""
+
+
+def hyprland_lua(palette):
+    accent = palette["accent"].lstrip("#")
+    inactive = palette["muted"].lstrip("#")
+    text = palette["foreground"].lstrip("#")
+
+    return f"""-- Omarchy 4 form of hyprland.conf, loaded by Omarchy's
+-- require_optional.module("omarchy.current.theme.hyprland"). Runs after
+-- Omarchy's own looknfeel and before ~/.config/hypr, same as the .conf did, so
+-- personal overrides still win.
+--
+-- The layer rules the .conf carried are gone on purpose: they blurred walker,
+-- waybar, swayosd and mako, none of which exist in Omarchy 4. Their replacement
+-- is the built-in shell, whose translucency is set in shell.*.toml.
+
+local active_border_color = "rgb({accent})"
+local inactive_border_color = "rgb({inactive})"
+
+hl.config({{
+  general = {{
+    col = {{
+      active_border = active_border_color,
+      inactive_border = inactive_border_color,
+    }},
+
+    border_size = 1,
+    gaps_in = 4,
+    gaps_out = 8,
+  }},
+
+  decoration = {{
+    rounding = 16,
+    active_opacity = 1.0,
+    inactive_opacity = 0.92,
+    fullscreen_opacity = 1.0,
+
+    blur = {{
+      enabled = true,
+      size = 6,
+      passes = 3,
+      contrast = 1.0,
+      brightness = 1.1,
+      vibrancy = 0.16,
+      vibrancy_darkness = 0.0,
+      noise = 0.02,
+      ignore_opacity = true,
+      new_optimizations = true,
+    }},
+
+    shadow = {{
+      enabled = true,
+      range = 20,
+      render_power = 3,
+      color = "rgba(00000066)",
+      offset = "0 4",
+    }},
+  }},
+
+  group = {{
+    col = {{
+      border_active = active_border_color,
+      border_inactive = inactive_border_color,
+    }},
+
+    groupbar = {{
+      text_color = "rgb({text})",
+      gradients = false,
+      height = 20,
+    }},
+  }},
+
+  animations = {{
+    enabled = true,
+  }},
+}})
+
+hl.curve("fluentDecel", {{ type = "bezier", points = {{ {{ 0, 0.2 }}, {{ 0.4, 1 }} }} }})
+hl.curve("easeOutCubic", {{ type = "bezier", points = {{ {{ 0.215, 0.61 }}, {{ 0.355, 1 }} }} }})
+hl.curve("overshot", {{ type = "bezier", points = {{ {{ 0.05, 0.9 }}, {{ 0.1, 1.05 }} }} }})
+
+hl.animation({{ leaf = "windows", enabled = true, speed = 4, bezier = "overshot", style = "popin 60%" }})
+hl.animation({{ leaf = "windowsIn", enabled = true, speed = 4, bezier = "overshot", style = "popin 60%" }})
+hl.animation({{ leaf = "windowsOut", enabled = true, speed = 3, bezier = "fluentDecel", style = "popin 80%" }})
+hl.animation({{ leaf = "windowsMove", enabled = true, speed = 4, bezier = "easeOutCubic", style = "slide" }})
+hl.animation({{ leaf = "fade", enabled = true, speed = 3, bezier = "fluentDecel" }})
+hl.animation({{ leaf = "workspaces", enabled = true, speed = 5, bezier = "easeOutCubic", style = "slidefade 15%" }})
+hl.animation({{ leaf = "specialWorkspace", enabled = true, speed = 5, bezier = "easeOutCubic", style = "slidefadevert 15%" }})
+"""
+
+
+def shell_bar_toml(palette):
+    return f"""# Replaces the [bar] section of Omarchy 4's generated shell.toml. A section
+# override replaces the whole section, so every key the generated one sets is
+# repeated here even where the value is unchanged.
+
+[bar]
+background       = "{palette['background']}"
+background-alpha = 1.0
+text             = "{palette['foreground']}"
+# The generated bar colours attention modules (recording, alerts, updates) with
+# `red`, which puts a second hue on a bar that otherwise carries none. Attention
+# is the accent here, the same decision the quickshell bar made.
+active           = "{palette['accent']}"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28
+"""
+
+
+def shell_launcher_toml(palette):
+    return f"""# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+# override replaces the whole section, so every key the generated one sets is
+# repeated here even where the value is unchanged.
+
+[launcher]
+background                = "{palette['background']}"
+background-alpha          = 0.94
+text                      = "{palette['foreground']}"
+# Borderless. The generated launcher frames the card in the Hyprland active-border
+# colour; this rice drops that frame and lets the shadow do the separating.
+border                    = "{palette['background']}"
+border-alpha              = 0.0
+scrim                     = "{palette['background']}"
+scrim-alpha               = 0.5
+# The walker build marked the selected row with an accent bar on its leading edge.
+# The launcher section has no per-side border width, so the accent tint and accent
+# text carry the selection on their own.
+selected-background       = "{palette['accent']}"
+selected-background-alpha = 0.10
+selected-text             = "{palette['accent']}"
+selected-border           = "{palette['accent']}"
+selected-border-alpha     = 0.0
+"""
+
+
+def migrate(theme_dir, check):
+    colors_file = theme_dir / "colors.toml"
+    if not colors_file.is_file():
+        print(f"{theme_dir.name}: no colors.toml, skipping", file=sys.stderr)
+        return False
+
+    colors = parse_colors(colors_file)
+    missing = [key for key in ("accent", "foreground", "background") if key not in colors]
+    missing += [f"color{index}" for index in range(16) if f"color{index}" not in colors]
+    if missing:
+        print(f"{theme_dir.name}: colors.toml is missing {', '.join(missing)}", file=sys.stderr)
+        return False
+
+    palette = semantic_palette(colors)
+    wanted = {
+        "colors.toml": colors_toml(colors, palette),
+        "hyprland.lua": hyprland_lua(palette),
+        "shell.bar.toml": shell_bar_toml(palette),
+        "shell.launcher.toml": shell_launcher_toml(palette),
+    }
+
+    print(theme_dir.name)
+    changed = False
+    for filename, contents in wanted.items():
+        target = theme_dir / filename
+        current = target.read_text() if target.is_file() else None
+        if current == contents:
+            print(f"  {filename:<20} unchanged")
+            continue
+        changed = True
+        if check:
+            print(f"  {filename:<20} {'would rewrite' if current else 'would create'}")
+        else:
+            target.write_text(contents)
+            print(f"  {filename:<20} {'rewritten' if current else 'created'}")
+    return changed
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("themes", nargs="*", help="theme names; default is every theme")
+    parser.add_argument("--check", action="store_true",
+                        help="report what would change and exit non-zero if anything would")
+    arguments = parser.parse_args()
+
+    names = arguments.themes or sorted(
+        path.name for path in (REPOSITORY / "themes").iterdir() if path.is_dir()
+    )
+
+    changed = False
+    for name in names:
+        theme_dir = REPOSITORY / "themes" / name
+        if not theme_dir.is_dir():
+            print(f"no such theme: {name}", file=sys.stderr)
+            return 1
+        changed |= migrate(theme_dir, arguments.check)
+
+    return 1 if (arguments.check and changed) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

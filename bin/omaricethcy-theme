@@ -394,6 +394,13 @@ def main():
 
     print(f"generating themes/{arguments.name} from {arguments.accent}")
     render(theme_dir, palette)
+
+    # The Omarchy 4 half is derived from the colors.toml render() just wrote rather
+    # than from the seed, so it is the same code path that migrates a hand-authored
+    # theme and the two halves cannot drift.
+    sys.stdout.flush()
+    subprocess.run([str(REPOSITORY / "bin" / "omaricethcy-omarchy4"), arguments.name], check=True)
+
     render_backgrounds(theme_dir, palette, arguments.force_backgrounds)
 
     for filename, contents in (
