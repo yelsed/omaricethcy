@@ -35,12 +35,26 @@ return {
         bright_purple = "#ff8c00",
         neutral_purple = "#d63100",
         faded_purple = "#7c1b00",
-        bright_red = "#ff5c33",
-        neutral_red = "#ff3200",
-        faded_red = "#a62600",
+        -- Gruvbox paints keywords, conditionals and operators with the red
+        -- family, which leaves ordinary code looking like it is full of errors.
+        -- The family is folded into the amber end of the ramp instead; real
+        -- errors keep the hot end through the overrides below, which stays
+        -- distinguishable from amber even though gloed has no separate red.
+        bright_red = "#ffab40",
+        neutral_red = "#ff8c00",
+        faded_red = "#ff6a00",
         bright_green = "#a3b845",
         neutral_green = "#8a9d33",
         faded_green = "#5c6a22",
+      },
+      overrides = {
+        DiagnosticError = { fg = "#ff3200" },
+        DiagnosticSignError = { fg = "#ff3200" },
+        DiagnosticVirtualTextError = { fg = "#ff3200" },
+        DiagnosticUnderlineError = { sp = "#ff3200", undercurl = true },
+        DiagnosticFloatingError = { fg = "#ff3200" },
+        ErrorMsg = { fg = "#ff3200" },
+        Error = { fg = "#ff3200" },
       },
     },
   },
