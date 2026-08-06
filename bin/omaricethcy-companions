@@ -6,6 +6,10 @@
 #   omaricethcy-companions --landscape 3440x1440 --portrait 1440x2560
 #   omaricethcy-companions --force
 #
+# Target sizes come from the monitors Hyprland reports, so a first run needs no
+# configuration. Override them permanently in ~/.config/omaricethcy/config, or
+# for a single run with the flags above.
+#
 # A portrait photo on a landscape screen, or a landscape photo on a portrait
 # one, either crops to a useless slice (swaybg's `fill`) or sits between visible
 # bars (`fit`). So each wallpaper gets a companion in the other shape:
@@ -34,26 +38,97 @@
 set -euo pipefail
 
 REPOSITORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LANDSCAPE_SIZE="2560x1440"
+CONFIG_FILE="${OMARICETHCY_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/omaricethcy/config}"
+
+# Last-resort sizes, used only when there is no config file and no running
+# Hyprland to ask. Deliberately the commonest desktop pair rather than the
+# author's own monitors.
+LANDSCAPE_SIZE="1920x1080"
 PORTRAIT_SIZE="1080x1920"
 FORCE=0
 THEMES=()
+FLAG_LANDSCAPE=""
+FLAG_PORTRAIT=""
+
+# Ask Hyprland what is actually attached, so a first run needs no configuration.
+# A rotated monitor reports its unrotated mode, so the odd transforms swap.
+detect_monitor_sizes() {
+  command -v hyprctl >/dev/null 2>&1 || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  local detected
+  detected="$(hyprctl monitors -j 2>/dev/null | python3 -c '
+import json, sys
+try:
+    monitors = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    raise SystemExit(0)
+
+widest_landscape = tallest_portrait = None
+for monitor in monitors:
+    width, height = monitor.get("width", 0), monitor.get("height", 0)
+    if monitor.get("transform", 0) % 2:
+        width, height = height, width
+    if not width or not height:
+        continue
+    if width >= height:
+        if widest_landscape is None or width * height > widest_landscape[0] * widest_landscape[1]:
+            widest_landscape = (width, height)
+    elif tallest_portrait is None or width * height > tallest_portrait[0] * tallest_portrait[1]:
+        tallest_portrait = (width, height)
+
+for label, size in (("landscape", widest_landscape), ("portrait", tallest_portrait)):
+    if size:
+        print(f"{label} {size[0]}x{size[1]}")
+' 2>/dev/null)" || return 0
+
+  local label size
+  while read -r label size; do
+    [[ -n $size ]] || continue
+    case "$label" in
+      landscape) LANDSCAPE_SIZE="$size" ;;
+      portrait) PORTRAIT_SIZE="$size" ;;
+    esac
+  done <<<"$detected"
+}
+
+detect_monitor_sizes
+
+# ~/.config/omaricethcy/config, if present, wins over what was detected. Plain
+# shell so it can be sourced:
+#
+#   LANDSCAPE_SIZE="3440x1440"
+#   PORTRAIT_SIZE="1440x2560"
+#   EDGE_VARIANCE=10
+#   EDGE_BLUR="0x90"
+if [[ -f $CONFIG_FILE ]]; then
+  # shellcheck source=/dev/null
+  source "$CONFIG_FILE"
+fi
 
 # Percent standard deviation of an edge line, above which that edge counts as
 # busy and is faded out to the dominant colour rather than stretched as-is.
 # Measured across the shipped wallpapers: clean edges land at 0.5-9.5 and busy
 # ones at 12+, so the boundary sits in an empty gap rather than on a guess.
-EDGE_VARIANCE=10
-EDGE_BLUR="0x90"
+EDGE_VARIANCE="${EDGE_VARIANCE:-10}"
+EDGE_BLUR="${EDGE_BLUR:-0x90}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --landscape) LANDSCAPE_SIZE="$2"; shift 2 ;;
-    --portrait) PORTRAIT_SIZE="$2"; shift 2 ;;
+    --landscape) FLAG_LANDSCAPE="$2"; shift 2 ;;
+    --portrait) FLAG_PORTRAIT="$2"; shift 2 ;;
     --force) FORCE=1; shift ;;
     -*) echo "unknown option: $1" >&2; exit 1 ;;
     *) THEMES+=("$1"); shift ;;
   esac
+done
+
+# Flags are the last word, over both the config file and what was detected.
+[[ -n $FLAG_LANDSCAPE ]] && LANDSCAPE_SIZE="$FLAG_LANDSCAPE"
+[[ -n $FLAG_PORTRAIT ]] && PORTRAIT_SIZE="$FLAG_PORTRAIT"
+
+for size in "$LANDSCAPE_SIZE" "$PORTRAIT_SIZE"; do
+  [[ $size =~ ^[0-9]+x[0-9]+$ ]] || { echo "not a WxH size: $size" >&2; exit 1; }
 done
 
 command -v magick >/dev/null || { echo "ImageMagick (magick) is required" >&2; exit 1; }
