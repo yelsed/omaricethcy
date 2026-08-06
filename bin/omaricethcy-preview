@@ -82,9 +82,13 @@ def build(theme_dir, name, fonts):
     foreground = colors.get("foreground", "#ede4c8")
     accent = colors.get("accent", foreground)
 
-    ramp = [colors[f"color{index}"] for index in (3, 5, 4, 6) if f"color{index}" in colors]
-    semantics = [colors.get(key) for key in ("color1", "color2", "color7", "color8")]
-    swatches = [accent] + ramp + [value for value in semantics if value]
+    # Accent ramp and neutrals only. The semantic red and green exist in the
+    # palette so errors and diffs stay readable, but they are not what either
+    # theme looks like, and a swatch row led by a green chip advertises a colour
+    # the desktop never shows. color3 is the accent, so it is not repeated.
+    ramp = [colors[f"color{index}"] for index in (5, 4, 6) if f"color{index}" in colors]
+    neutrals = [colors.get(key) for key in ("color7", "color8")]
+    swatches = [accent] + ramp + [value for value in neutrals if value]
 
     backdrop = pick_backdrop(theme_dir)
     command = ["magick"]
