@@ -24,6 +24,7 @@ One command. Every step is idempotent, and anything outside this repository is b
 | Themes | Symlinks each `themes/<name>/` into `~/.config/omarchy/themes/`. Symlinks, not copies, so edits here are live on the next `omarchy theme set`. Both `omarchy theme list` and `omarchy-theme-set` handle symlinked theme directories natively. |
 | Tools | Links `bin/omaricethcy-*` into `~/.local/bin` |
 | Wallpaper hook | Installs `hooks/60-omaricethcy-bg.sh` into `~/.config/omarchy/hooks/theme-set.d/` so the per-monitor split survives a theme change, and binds `SUPER SHIFT W` to the cycler |
+| Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active |
 | Ghostty | Adds the `config-file` line for the theme palette and points `custom-shader` at the theme's shader. Warns if a hardcoded `theme =` line is still overriding the rice. |
 | Default terminal | Puts Ghostty first in `~/.config/xdg-terminals.list` and registers `x-scheme-handler/terminal` |
 | Waybar | Turns off Omarchy's Waybar, persistently — the rice uses the quickshell bar, and Waybar would sit on top of it |
@@ -37,7 +38,7 @@ One command. Every step is idempotent, and anything outside this repository is b
 omaricethcy-theme '#7aa2f7' blauw --apply
 ```
 
-Generates a complete theme from one colour — ramp, neutrals, semantics, terminal palette, Hyprland decoration, lock screen, launcher, shader and wallpapers — then applies it.
+Generates a complete theme from one colour — ramp, neutrals, semantics, terminal palette, Hyprland decoration, lock screen, launcher and wallpapers — then applies it. The Ghostty shader needs no per-theme file: it is one template that reads the active palette, see [The shader](#the-shader).
 
 The ramp keeps the seed's hue and walks its lightness down a fixed curve fitted to the hand-authored goud ramp, which it reproduces to within 8/255 per channel. Error and success stay outside the ramp and are pushed at least 22° away from the seed's hue, so a red-accented theme still shows errors in a distinguishable red. Every generated text-carrying slot is lifted until it clears 4.5:1 against the background — blues and violets are perceptually dark and fail at a fixed lightness.
 
@@ -141,7 +142,6 @@ themes/<name>/
 ├── hyprlock.conf    lock screen colour variables, incl. ones Omarchy has no template for
 ├── walker.css       launcher rounding and motion — the template is colours only
 ├── waybar.css       adds accent and alert, so style.css need not hardcode hexes
-├── shader.glsl      Ghostty background shader in the theme's accent
 ├── icons.theme      GTK icon theme name
 ├── vscode.json      VS Code theme name and extension id
 ├── neovim.lua       LazyVim colorscheme spec
@@ -222,6 +222,21 @@ That works beautifully for an edge of flat colour and badly for one a subject ru
 The threshold is not a guess. Across the shipped wallpapers clean edges measure 0.5–9.5% and busy ones 12% and up, so 10 sits in an empty gap. The two are frequently different on the same image: `rubberplant` is 2.3% left and 29.5% right, `batman-silhouet` is exactly the mirror at 28.5% and 0.3%.
 
 The fade mask has to be white at the *outer* end of each bar. Reversed, the dominant colour lands at the join and the seam it was meant to hide becomes the worst part of the image — measured at 210/255 on `rubberplant`'s right edge before it was corrected.
+
+##### Sizing the companions
+
+Companions are rendered at a fixed pixel size, which has to match the screens they are for. `omaricethcy-companions` asks Hyprland what is attached and takes the largest landscape and largest portrait output, so a first run on any machine needs no configuration. Rotated outputs report their unrotated mode, so odd `transform` values are swapped back.
+
+To pin the sizes instead, create `~/.config/omaricethcy/config`:
+
+```bash
+LANDSCAPE_SIZE="3440x1440"
+PORTRAIT_SIZE="1440x2560"
+EDGE_VARIANCE=10        # the busy-edge threshold above, in percent
+EDGE_BLUR="0x90"        # vertical blur applied to the stretched bars
+```
+
+It is plain shell, sourced by the tool. Precedence is flags, then this file, then what was detected, then `1920x1080` / `1080x1920` if there is no Hyprland to ask. `OMARICETHCY_CONFIG` points at a different file.
 
 Portrait outputs get the untouched original. Orientation comes from `hyprctl monitors`, accounting for rotation: an odd `transform` means the reported width and height are the other way round.
 
@@ -397,6 +412,20 @@ Why each override exists, rather than taking the generated version:
 | `waybar.css` | foreground and background | No accent or alert, forcing hardcoded hexes in `style.css` |
 
 Everything else is produced by Omarchy from `colors.toml` and is deliberately **not** committed: `alacritty.toml`, `ghostty.conf`, `kitty.conf`, `foot.ini`, `mako.ini`, `swayosd.css`, `btop.theme`, `obsidian.css`, `helix.toml`, `chromium.theme`, `keyboard.rgb`, `gum.env.conf`.
+
+### The shader
+
+The Ghostty background shader — a slowly spinning ASCII Omarchy logo — is 200 lines of GLSL of which exactly one line differs between themes. Shipping it per theme meant two identical 9K files whose only distinction was a colour constant, and a third copy for every theme generated later.
+
+It is one template instead, at `templates/shader.glsl.tpl`:
+
+```glsl
+const vec3  LOGO_COLOR      = vec3({{ accent_rgb }}) / 255.0;
+```
+
+`install.sh` links it into `~/.config/omarchy/themed/`, which Omarchy renders into the active theme on every `omarchy theme set`, substituting from that theme's `colors.toml`. `{{ accent_rgb }}` expands to a decimal triple, hence the `/ 255.0`.
+
+Two things fall out of this beyond removing the duplication. Themes generated later get the shader without doing anything. And so do Omarchy's own themes — switching to catppuccin now gives a catppuccin-blue logo rather than a dangling `custom-shader` path.
 
 ### Configs outside the theme
 
