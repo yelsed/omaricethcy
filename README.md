@@ -473,17 +473,36 @@ One value is changed on purpose rather than repaired: `orange` defaults to `yell
 
 Everything else Omarchy 4 derives is written out too, at the values its own `mix` would have produced. That is deliberate: the fallback cascade is upstream's compatibility shim and is free to change, whereas a name the theme states itself is not.
 
+### Testing Omarchy 4 without installing Omarchy 4
+
+Most of it can be run for real on a machine still on Omarchy 3, because neither half needs the new desktop:
+
+- **`hyprland.lua`** — Hyprland reads Lua natively since 0.55, so the installed binary *is* the parser Omarchy 4 would use. `Hyprland --verify-config` loads a config and reports errors without starting a compositor.
+- **`shell.*.toml`** — Omarchy 4's theme pipeline is plain bash. Pointed at a throwaway `HOME` and a clone of upstream, it renders exactly the files it would on a real machine.
+
+```bash
+bin/omaricethcy-omarchy4-dryrun              # both themes
+bin/omaricethcy-omarchy4-dryrun goud
+bin/omaricethcy-omarchy4-dryrun --refresh    # re-pull the cached upstream clone
+```
+
+It clones upstream into `~/.cache/omaricethcy/omarchy4`, prints which commit it ran against — Omarchy 4 is unreleased and its default branch moves — and checks, per theme, that the Lua parses, that the pipeline runs, that the theme's `hyprland.lua` beats `hyprland.lua.tpl`, that the merged `shell.toml` is valid TOML, that each `shell.*.toml` spliced in intact, and that sections the theme does *not* override still carry its palette.
+
+The checks were confirmed to fail on a deliberately broken setting name, a malformed `shadow.offset`, malformed TOML, and a section header that disagrees with its filename.
+
 ### What is verified, and what is not
 
-Verified on this machine, against Omarchy 3.8.4 and against Omarchy 4's own `omarchy-theme-color` resolver run directly on these files:
+Verified on this machine — against Omarchy 3.8.4, against Omarchy 4's own `omarchy-theme-color` resolver, and against Omarchy 4's theme pipeline run through the dry run above:
 
 - Every token Omarchy 3's templates substitute resolves to exactly the value it did before the migration, for both themes.
 - Re-applying a theme regenerates all 24 per-application configs **byte-identically** to before.
 - Under the Omarchy 4 resolver, only the four intended keys change — `light_foreground`, `lighter_background`, `orange`, `brown`. Nothing else moved.
+- Both themes' `hyprland.lua` parse clean under Hyprland 0.56. That settles `shadow.offset = "0 4"`, which was the one line whose Lua spelling had been inferred rather than seen — Hyprland's own error for a bad value is *"vec2 string requires exactly 2 numbers (e.g. `1 1`)"*.
+- Omarchy 4's pipeline renders both themes, the theme-local `hyprland.lua` survives its template, and the merged `shell.toml` parses with all 13 sections and both overrides spliced in.
 - `hyprctl configerrors` stays clean.
 - `python3 bin/test_omaricethcy_omarchy4.py` — 6 tests, including that the committed files match what the tool produces, so a stale theme fails the suite rather than drifting quietly.
 
-Not verified, because it needs a machine actually running Omarchy 4: that `hyprland.lua` and the two `shell.*.toml` files load. They are written against upstream's own `default/hypr/looknfeel.lua` and `default/themed/shell.toml.tpl`, but reading a format is not the same as running it. The one line to check first is `shadow.offset = "0 4"`, where the Lua spelling of a two-component value is inferred rather than seen.
+What remains untested is the only part that genuinely needs Omarchy 4: whether its shell *renders* these files the way the themes intend. Parsing is not appearance. Expect to nudge alphas and sizes on the day.
 
 ### What Omarchy 4 does not carry over
 
