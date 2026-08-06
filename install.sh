@@ -16,6 +16,7 @@ LOCAL_BIN="$HOME/.local/bin"
 GHOSTTY_CONFIG="$HOME/.config/ghostty/config"
 TERMINALS_LIST="$HOME/.config/xdg-terminals.list"
 HOOK_DIR="$HOME/.config/omarchy/hooks/theme-set.d"
+OMARCHY_USER_TEMPLATES="$HOME/.config/omarchy/themed"
 BINDINGS_CONF="$HOME/.config/hypr/bindings.conf"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
@@ -149,6 +150,23 @@ else
     >>"$BINDINGS_CONF"
   note "added SUPER SHIFT W"
 fi
+
+# ── Shader template ──────────────────────────────────────────────────────────
+# Omarchy renders ~/.config/omarchy/themed/*.tpl into the active theme on every
+# `omarchy theme set`, substituting {{ key }} from its colors.toml. Keeping the
+# shader here instead of in each theme means one file serves every theme — the
+# two shipped here, ones generated later, and Omarchy's own.
+say "Installing the shader template"
+mkdir -p "$OMARCHY_USER_TEMPLATES"
+shader_template="$OMARCHY_USER_TEMPLATES/shader.glsl.tpl"
+if [[ -L $shader_template ]]; then
+  rm "$shader_template"
+elif [[ -e $shader_template ]]; then
+  backup "$shader_template"
+  rm "$shader_template"
+fi
+ln -s "$REPOSITORY_DIR/templates/shader.glsl.tpl" "$shader_template"
+note "linked shader.glsl.tpl"
 
 # ── Ghostty ──────────────────────────────────────────────────────────────────
 # Without the theme's config-file line Ghostty ignores Omarchy's palette

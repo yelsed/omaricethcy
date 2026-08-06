@@ -1,15 +1,19 @@
+// One shader for every theme. Omarchy renders ~/.config/omarchy/themed/*.tpl
+// into the active theme on every `omarchy theme set`, substituting {{ key }}
+// from its colors.toml, so the accent below follows the theme with no per-theme
+// copy of this file. install.sh puts it there.
+//
 // Omarchy Logo 3D ASCII Art Shader
 // Renders the Omarchy icon as a 3D extruded model displayed with ASCII characters,
 // with a "spin-in" deceleration on tab open.
 // Logo geometry derived from ~/.config/omarchy/branding/about.txt (54×26 block-char grid).
-// Place BEFORE tft.glsl in Ghostty config.
 
 // ── User-configurable constants ─────────────────────────────────────────
 const float LOGO_SCALE      = 0.30;    // size relative to screen height
 const float LOGO_OPACITY    = 0.35;    // base opacity
 const float ROTATION_SPEED  = -0.4;    // radians per second (negative = reverse)
 const float EXTRUDE_DEPTH   = 0.15;    // Z extrusion half-depth
-const vec3  LOGO_COLOR      = vec3(0.898, 0.757, 0.145); // #e5c125 goud accent
+const vec3  LOGO_COLOR      = vec3({{ accent_rgb }}) / 255.0; // the active theme's accent
 const float CELL_SIZE       = 8.0;     // pixel size of each ASCII cell
 const bool  OSCILLATE       = false;   // true = rock back and forth, false = continuous spin
 const float OSCILLATE_RANGE = 0.8;     // max angle in radians when oscillating
