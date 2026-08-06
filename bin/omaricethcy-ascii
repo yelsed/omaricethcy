@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Render a word as an ASCII banner, and as a PNG of that banner.
+
+    omaricethcy-ascii goud
+    omaricethcy-ascii --all
+
+Writes into themes/<name>/ascii/:
+
+    logo.txt      the banner, plain text — fastfetch logo, shell greeting
+    logo.png      the same banner drawn in the accent colour on the background,
+                  for surfaces that cannot render text themselves (hyprlock)
+    unlock.png    a wide, short variant for the Plymouth boot logo
+
+No figlet on this system and none worth adding as a dependency, so the letter
+forms live here. Only the characters theme names need are defined; anything
+missing falls back to a filled block so a new name still produces something.
+"""
+
+import argparse
+import pathlib
+import shutil
+import subprocess
+import re
+import sys
+
+REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
+
+# Six rows per glyph. Chosen to read as solid slab letters at terminal size.
+GLYPHS = {
+    "A": ["▄▀▀▀▄", "█▄▄▄█", "█   █", "█   █", "▀   ▀", "     "],
+    "B": ["█▀▀▄ ", "█▄▄▀ ", "█  █ ", "█▄▄▀ ", "▀▀▀  ", "     "],
+    "C": ["▄▀▀▀▄", "█    ", "█    ", "█▄▄▄▄", " ▀▀▀▀", "     "],
+    "D": ["█▀▀▄ ", "█  █ ", "█  █ ", "█▄▄▀ ", "▀▀▀  ", "     "],
+    "E": ["█▀▀▀▀", "█▄▄▄ ", "█    ", "█▄▄▄▄", "▀▀▀▀▀", "     "],
+    "F": ["█▀▀▀▀", "█▄▄▄ ", "█    ", "█    ", "▀    ", "     "],
+    "G": ["▄▀▀▀▄", "█    ", "█ ▀█ ", "█▄▄█ ", " ▀▀▀ ", "     "],
+    "H": ["█   █", "█▄▄▄█", "█   █", "█   █", "▀   ▀", "     "],
+    "I": ["▀█▀", " █ ", " █ ", "▄█▄", "▀▀▀", "   "],
+    "J": ["   █", "   █", "   █", "█▄▄█", " ▀▀ ", "    "],
+    "K": ["█  ▄▀", "█▄▀  ", "█▀▄  ", "█  ▀▄", "▀   ▀", "     "],
+    "L": ["█    ", "█    ", "█    ", "█▄▄▄▄", "▀▀▀▀▀", "     "],
+    "M": ["█▄ ▄█", "█ ▀ █", "█   █", "█   █", "▀   ▀", "     "],
+    "N": ["█▄  █", "█ ▀▄█", "█  ▀█", "█   █", "▀   ▀", "     "],
+    "O": ["▄▀▀▀▄", "█   █", "█   █", "▀▄▄▄▀", " ▀▀▀ ", "     "],
+    "P": ["█▀▀▄ ", "█▄▄▀ ", "█    ", "█    ", "▀    ", "     "],
+    "R": ["█▀▀▄ ", "█▄▄▀ ", "█ ▀▄ ", "█  ▀▄", "▀   ▀", "     "],
+    "S": ["▄▀▀▀▀", "▀▄▄▄ ", "    █", "▀▄▄▄▀", " ▀▀▀ ", "     "],
+    "T": ["▀▀█▀▀", "  █  ", "  █  ", "  █  ", "  ▀  ", "     "],
+    "U": ["█   █", "█   █", "█   █", "▀▄▄▄▀", " ▀▀▀ ", "     "],
+    "V": ["█   █", "█   █", "▀▄ ▄▀", " ▀▄▀ ", "  ▀  ", "     "],
+    "W": ["█   █", "█   █", "█ ▄ █", "▀▄▀▄▀", " ▀ ▀ ", "     "],
+    "X": ["▀▄ ▄▀", " ▀▄▀ ", " ▄▀▄ ", "▄▀ ▀▄", "▀   ▀", "     "],
+    "Y": ["█   █", "▀▄ ▄▀", " ▀█▀ ", "  █  ", "  ▀  ", "     "],
+    "Z": ["▀▀▀▀█", "   ▄▀", " ▄▀  ", "█▄▄▄▄", "▀▀▀▀▀", "     "],
+    "-": ["     ", "     ", "▄▄▄▄▄", "     ", "     ", "     "],
+    " ": ["   ", "   ", "   ", "   ", "   ", "   "],
+}
+FALLBACK = ["█████", "█████", "█████", "█████", "▀▀▀▀▀", "     "]
+ROWS = 6
+
+
+# Doubling a row is not a matter of printing it twice: a half block fills half a
+# cell, so at twice the size it fills one whole cell and leaves the next empty.
+DOUBLED = {"█": ("█", "█"), "▀": ("█", " "), "▄": (" ", "█"), " ": (" ", " ")}
+
+
+def scale_glyph(glyph, factor):
+    """Enlarge a glyph by a whole factor, keeping the half-block shapes honest."""
+    if factor == 1:
+        return glyph
+    rows = []
+    for line in glyph:
+        widened = "".join(character * factor for character in line)
+        top = "".join(DOUBLED.get(character, (character, character))[0] for character in line)
+        bottom = "".join(DOUBLED.get(character, (character, character))[1] for character in line)
+        top = "".join(character * factor for character in top)
+        bottom = "".join(character * factor for character in bottom)
+        rows.extend([top] + [widened] * (factor - 2) + [bottom] if factor > 2 else [top, bottom])
+    return rows
+
+
+def banner(word, scale=1):
+    glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
+    height = len(glyphs[0]) if glyphs else ROWS
+    rows = [" ".join(glyph[row] for glyph in glyphs).rstrip() for row in range(height)]
+    # The glyphs carry a blank row for descender spacing, which scaling
+    # multiplies. Empty rows cost a wasted hyprlock label each, so drop them.
+    while rows and not rows[-1].strip():
+        rows.pop()
+    return rows
+
+
+def letter_boundaries(word, scale=1):
+    """Column each letter ends at, so a reveal can step one letter at a time.
+
+    The banner is stored as flat lines, which cannot be split back into glyphs
+    without knowing the widths, so they are written out alongside it."""
+    glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
+    boundaries, column = [], 0
+    for index, glyph in enumerate(glyphs):
+        column += len(glyph[0]) + (1 if index else 0)
+        boundaries.append(column)
+    return boundaries
+
+
+def read_palette(theme_dir):
+    colors = {}
+    pattern = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"(#[0-9a-fA-F]{6})"')
+    for line in (theme_dir / "colors.toml").read_text().splitlines():
+        match = pattern.match(line)
+        if match:
+            colors[match.group(1).lower()] = match.group(2)
+    return colors
+
+
+def draw(lines, accent, background, output, point_size, width=None, height=None):
+    """Draw the banner with ImageMagick. The block characters need a font that
+    actually has them, so use the same Nerd Font the rest of the rice uses."""
+    fonts = subprocess.run(["magick", "-list", "font"], capture_output=True, text=True).stdout
+    available = {row.split(":", 1)[1].strip() for row in fonts.splitlines() if "Font:" in row}
+    font = next((name for name in ("FiraCode-Nerd-Font-Mono", "JetBrainsMono-Nerd-Font-Mono",
+                                   "DejaVu-Sans-Mono-for-Powerline", "DejaVu-Sans-Mono")
+                 if name in available), None)
+
+    command = ["magick", "-background", background, "-fill", accent, "-pointsize", str(point_size)]
+    if font:
+        command += ["-font", font]
+    command += [f"label:{chr(10).join(lines)}", "-bordercolor", background, "-border", "40x28"]
+    if width and height:
+        command += ["-resize", f"{width}x{height}", "-gravity", "center",
+                    "-background", background, "-extent", f"{width}x{height}"]
+    command += [str(output)]
+    subprocess.run(command, check=True)
+
+
+def build(theme_dir, name, scale=2):
+    colors = read_palette(theme_dir)
+    accent = colors.get("accent", "#e5c125")
+    background = colors.get("background", "#181716")
+
+    ascii_dir = theme_dir / "ascii"
+    ascii_dir.mkdir(exist_ok=True)
+    lines = banner(name, scale)
+
+    (ascii_dir / "logo.txt").write_text("\n".join(lines) + "\n")
+    print(f"  wrote {(ascii_dir / 'logo.txt').relative_to(REPOSITORY)}")
+
+    boundaries = letter_boundaries(name, scale)
+    (ascii_dir / "logo.widths").write_text(" ".join(str(c) for c in boundaries) + "\n")
+    print(f"  wrote {(ascii_dir / 'logo.widths').relative_to(REPOSITORY)}")
+
+    if not shutil.which("magick"):
+        print("  ImageMagick missing, skipping the PNG variants", file=sys.stderr)
+        return
+
+    draw(lines, accent, background, ascii_dir / "logo.png", 42)
+    print(f"  wrote {(ascii_dir / 'logo.png').relative_to(REPOSITORY)}")
+
+    # Plymouth wants a wide, short logo; stock Omarchy themes ship 800x188.
+    draw(lines, accent, background, theme_dir / "unlock.png", 42, 800, 188)
+    print(f"  wrote {(theme_dir / 'unlock.png').relative_to(REPOSITORY)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("themes", nargs="*")
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--scale", type=int, default=2,
+                        help="whole-number size multiplier for the letterforms (default 2)")
+    arguments = parser.parse_args()
+
+    names = arguments.themes
+    if arguments.all or not names:
+        names = sorted(path.name for path in (REPOSITORY / "themes").iterdir() if path.is_dir())
+
+    for name in names:
+        theme_dir = REPOSITORY / "themes" / name
+        if not theme_dir.is_dir():
+            print(f"no such theme: {name}", file=sys.stderr)
+            continue
+        print(name)
+        build(theme_dir, name, arguments.scale)
+
+
+if __name__ == "__main__":
+    main()

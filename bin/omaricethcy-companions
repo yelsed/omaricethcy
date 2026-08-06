@@ -1,0 +1,207 @@
+#!/bin/bash
+# Build the companion images that let any wallpaper fill a screen of the other
+# shape. Replaces the earlier omaricethcy-landscape, which only went one way.
+#
+#   omaricethcy-companions [theme...]
+#   omaricethcy-companions --landscape 3440x1440 --portrait 1440x2560
+#   omaricethcy-companions --force
+#
+# A portrait photo on a landscape screen, or a landscape photo on a portrait
+# one, either crops to a useless slice (swaybg's `fill`) or sits between visible
+# bars (`fit`). So each wallpaper gets a companion in the other shape:
+#
+#   themes/<name>/landscape/   for portrait sources, shown on landscape outputs
+#   themes/<name>/portrait/    for landscape sources, shown on portrait outputs
+#
+# The image is placed at full height (or full width) and its own outermost pixel
+# line is stretched to fill the rest. The colour at the join is identical on both
+# sides by construction, so the picture carries on into the margin rather than
+# stopping at an edge. Those bars are blurred: without it, a subject touching the
+# edge smears into hard streaks.
+#
+# An edge a subject runs into cannot be stretched convincingly however much it is
+# blurred, so each edge is measured on its own and only busy ones are faded out
+# to the image's dominant colour. Clean edges are left exactly as they are.
+#
+# Approaches that were tried and do not work, for the record:
+#   - A blurred copy of the photo as backdrop. Sources here are ~736px wide, so
+#     filling 2560px magnifies them ~3.5x and blur cannot hide structure at that
+#     scale; a giant recognisable fragment of the photo sits either side.
+#   - A gradient from the theme palette. Fine until the image's own background
+#     differs from it — a black-backed image on a gold gradient is a hard seam.
+#   - Mirrored edges. Obvious axis of symmetry on anything with a subject.
+
+set -euo pipefail
+
+REPOSITORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LANDSCAPE_SIZE="2560x1440"
+PORTRAIT_SIZE="1080x1920"
+FORCE=0
+THEMES=()
+
+# Percent standard deviation of an edge line, above which that edge counts as
+# busy and is faded out to the dominant colour rather than stretched as-is.
+# Measured across the shipped wallpapers: clean edges land at 0.5-9.5 and busy
+# ones at 12+, so the boundary sits in an empty gap rather than on a guess.
+EDGE_VARIANCE=10
+EDGE_BLUR="0x90"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --landscape) LANDSCAPE_SIZE="$2"; shift 2 ;;
+    --portrait) PORTRAIT_SIZE="$2"; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    -*) echo "unknown option: $1" >&2; exit 1 ;;
+    *) THEMES+=("$1"); shift ;;
+  esac
+done
+
+command -v magick >/dev/null || { echo "ImageMagick (magick) is required" >&2; exit 1; }
+
+if [[ ${#THEMES[@]} -eq 0 ]]; then
+  for theme_dir in "$REPOSITORY_DIR"/themes/*/; do THEMES+=("$(basename "$theme_dir")"); done
+fi
+
+dominant_colour() {
+  local value
+  value="$(magick "$1" -resize 120x120 -colors 6 -format %c histogram:info: |
+           sort -rn | grep -oE '#[0-9A-Fa-f]{6}' | head -1)"
+  [[ -n $value ]] && echo "$value" || echo "#000000"
+}
+
+# Stretch one edge line of the image into a bar, fading it out to the dominant
+# colour when that edge is too busy to extend convincingly.
+#
+#   $1 image  $2 crop geometry  $3 bar WxH  $4 dominant  $5 gradient  $6 output
+build_bar() {
+  local image="$1" crop="$2" bar="$3" dominant="$4" gradient="$5" out="$6" deviation
+  deviation="$(magick "$image" -crop "$crop" +repage -format '%[fx:standard_deviation*100]' info:)"
+
+  if awk -v d="$deviation" -v t="$EDGE_VARIANCE" 'BEGIN{exit !(d>=t)}'; then
+    magick \
+      \( "$image" -crop "$crop" +repage -resize "${bar}!" -blur "$EDGE_BLUR" \) \
+      \( -size "$bar" "xc:$dominant" \) \
+      \( -size "$bar" "gradient:$gradient" \) \
+      -compose over -composite "$out"
+    echo faded
+  else
+    magick "$image" -crop "$crop" +repage -resize "${bar}!" -blur "$EDGE_BLUR" "$out"
+    echo clamped
+  fi
+}
+
+# Widen a portrait image to fill a landscape frame.
+build_landscape() {
+  local image="$1" width="$2" height="$3" out="$4"
+  local target_width="${LANDSCAPE_SIZE%x*}" target_height="${LANDSCAPE_SIZE#*x}"
+  local panel pad dominant left right first second
+
+  panel=$(( target_height * width / height ))
+  pad=$(( (target_width - panel + 1) / 2 ))
+  if (( pad < 1 )); then
+    magick "$image" -resize "${LANDSCAPE_SIZE}^" -gravity center -extent "$LANDSCAPE_SIZE" \
+      -quality 92 "$out"
+    echo "no margin, cropped"
+    return
+  fi
+
+  dominant="$(dominant_colour "$image")"
+  left="$(mktemp --suffix=.png)"; right="$(mktemp --suffix=.png)"
+  # The mask is white where the dominant colour wins, which must be the outer
+  # end of each bar so the join keeps the edge's own colour.
+  first="$(build_bar "$image" "1x${height}+0+0" "${pad}x${target_height}" \
+           "$dominant" "white-black" "$left")"
+  second="$(build_bar "$image" "1x${height}+$((width - 1))+0" "${pad}x${target_height}" \
+            "$dominant" "black-white" "$right")"
+
+  magick "$left" \( "$image" -resize "x${target_height}" \) "$right" \
+    +append -resize "${LANDSCAPE_SIZE}!" -quality 92 "$out"
+  rm -f "$left" "$right"
+  echo "left $first, right $second"
+}
+
+# Heighten a landscape image to fill a portrait frame.
+build_portrait() {
+  local image="$1" width="$2" height="$3" out="$4"
+  local target_width="${PORTRAIT_SIZE%x*}" target_height="${PORTRAIT_SIZE#*x}"
+  local panel pad dominant top bottom first second
+
+  panel=$(( target_width * height / width ))
+  pad=$(( (target_height - panel + 1) / 2 ))
+  if (( pad < 1 )); then
+    magick "$image" -resize "${PORTRAIT_SIZE}^" -gravity center -extent "$PORTRAIT_SIZE" \
+      -quality 92 "$out"
+    echo "no margin, cropped"
+    return
+  fi
+
+  dominant="$(dominant_colour "$image")"
+  top="$(mktemp --suffix=.png)"; bottom="$(mktemp --suffix=.png)"
+  first="$(build_bar "$image" "${width}x1+0+0" "${target_width}x${pad}" \
+           "$dominant" "white-black" "$top")"
+  second="$(build_bar "$image" "${width}x1+0+$((height - 1))" "${target_width}x${pad}" \
+            "$dominant" "black-white" "$bottom")"
+
+  magick "$top" \( "$image" -resize "${target_width}x" \) "$bottom" \
+    -append -resize "${PORTRAIT_SIZE}!" -quality 92 "$out"
+  rm -f "$top" "$bottom"
+  echo "top $first, bottom $second"
+}
+
+for theme in "${THEMES[@]}"; do
+  theme_dir="$REPOSITORY_DIR/themes/$theme"
+  source_dir="$theme_dir/backgrounds"
+  [[ -d $theme_dir/wallpapers ]] || { echo "no wallpapers/ for $theme, skipping" >&2; continue; }
+  mkdir -p "$theme_dir/landscape" "$theme_dir/portrait" "$source_dir" \
+           "$theme_dir/wallpapers/landscape" "$theme_dir/wallpapers/portrait"
+
+  echo "$theme  landscape $LANDSCAPE_SIZE  portrait $PORTRAIT_SIZE"
+
+  # backgrounds/ is what Omarchy reads, and it has to be one flat directory.
+  # The wallpapers live in wallpapers/<orientation>/ so there is an obvious place
+  # to drop a new one, and this mirrors them in as relative symlinks — which
+  # survive Omarchy's `cp -r` of the theme and are followed by its `find -L`.
+  shopt -s nullglob
+  for link in "$source_dir"/*; do [[ -L $link ]] && rm -f "$link"; done
+  for orientation in landscape portrait; do
+    for image in "$theme_dir/wallpapers/$orientation"/*.{jpg,jpeg,png}; do
+      base="$(basename "$image")"
+      read -r width height < <(identify -format '%w %h\n' "$image[0]")
+      actual=portrait; (( width >= height )) && actual=landscape
+      if [[ $actual != "$orientation" ]]; then
+        printf '  %-22s is %s (%sx%s) but sits in wallpapers/%s\n' \
+          "$base" "$actual" "$width" "$height" "$orientation" >&2
+      fi
+      ln -sfn "../wallpapers/$orientation/$base" "$source_dir/$base"
+    done
+  done
+
+  for image in "$source_dir"/*.{jpg,jpeg,png}; do
+    stem="$(basename "${image%.*}")"
+    # Trailing newline matters: without it `read` returns 1 at EOF and set -e aborts.
+    read -r width height < <(identify -format '%w %h\n' "$image[0]")
+
+    if (( width >= height )); then
+      # Landscape source: needs a portrait companion, and only rescaling to fit
+      # the landscape screen.
+      out="$REPOSITORY_DIR/themes/$theme/portrait/$stem.jpg"
+      if [[ ! -f $out || $FORCE -eq 1 ]]; then
+        printf '  %-22s %sx%s landscape -> portrait: %s\n' \
+          "$stem" "$width" "$height" "$(build_portrait "$image" "$width" "$height" "$out")"
+      fi
+      out="$REPOSITORY_DIR/themes/$theme/landscape/$stem.jpg"
+      if [[ ! -f $out || $FORCE -eq 1 ]]; then
+        magick "$image" -resize "${LANDSCAPE_SIZE}^" -gravity center \
+          -extent "$LANDSCAPE_SIZE" -quality 92 "$out"
+        printf '  %-22s %sx%s landscape -> landscape: rescaled\n' "$stem" "$width" "$height"
+      fi
+    else
+      out="$REPOSITORY_DIR/themes/$theme/landscape/$stem.jpg"
+      if [[ ! -f $out || $FORCE -eq 1 ]]; then
+        printf '  %-22s %sx%s portrait -> landscape: %s\n' \
+          "$stem" "$width" "$height" "$(build_landscape "$image" "$width" "$height" "$out")"
+      fi
+    fi
+  done
+  shopt -u nullglob
+done

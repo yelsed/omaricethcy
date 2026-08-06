@@ -1,0 +1,17 @@
+#!/bin/bash
+# Shim, installed into ~/.local/bin so it precedes ~/.local/share/omarchy/bin.
+#
+# Omarchy's own wallpaper cycler points a single image at every output. This
+# hands cycling to omaricethcy-bg instead, which keeps the per-monitor split.
+# Falls through to the real command when the current theme has nothing to cycle,
+# so stock themes still behave normally.
+
+set -euo pipefail
+
+REAL="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/bin/omarchy-theme-bg-next"
+
+if command -v omaricethcy-bg >/dev/null && omaricethcy-bg next >/dev/null 2>&1; then
+  exit 0
+fi
+
+exec "$REAL" "$@"

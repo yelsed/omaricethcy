@@ -1,0 +1,21 @@
+#!/bin/bash
+# Shim, installed into ~/.local/bin so it precedes ~/.local/share/omarchy/bin.
+#
+# Both wallpaper pickers — Omarchy's own background menu and the quickshell bar's
+# carousel — end up calling `omarchy-theme-bg-set <path>`, which points a single
+# image at every output and so undoes the per-monitor split. Omarchy exposes no
+# hook for this, so intercepting the command is the only single point that
+# covers both. The real command still does the work; this only re-applies
+# afterwards.
+
+set -euo pipefail
+
+REAL="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/bin/omarchy-theme-bg-set"
+
+if [[ ! -x $REAL ]]; then
+  echo "omaricethcy shim: cannot find the real omarchy-theme-bg-set at $REAL" >&2
+  exit 1
+fi
+
+"$REAL" "$@"
+command -v omaricethcy-bg >/dev/null && omaricethcy-bg apply >/dev/null 2>&1 || true
