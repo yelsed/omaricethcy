@@ -1,0 +1,219 @@
+#!/bin/bash
+# Print the theme's ASCII banner, animated on the way in.
+#
+#   omaricethcy-banner                 type it out one letter at a time
+#   omaricethcy-banner --style sweep   wipe left to right, column by column
+#   omaricethcy-banner --style lines   reveal one row of the banner at a time
+#   omaricethcy-banner --style fade    fade up from the background to the accent
+#   omaricethcy-banner --style none    print it, no animation
+#   omaricethcy-banner --frames 10 --delay 20
+#
+# Runs from ~/.bashrc, so it has to be cheap and it has to get out of the way:
+# no animation unless stdout is a terminal that can do truecolour, and the whole
+# thing is capped at roughly 200ms. OMARICETHCY_BANNER=off skips it entirely.
+
+set -uo pipefail
+
+# The reveal slices the banner with ${row:0:n}, which counts characters under a
+# UTF-8 locale and bytes otherwise. The block glyphs are three bytes each, so
+# without this a caller with no locale gets glyphs chopped mid-character. Callers
+# here include hyprlock, whose environment is not ours to rely on.
+case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+  *UTF-8*|*utf8*|*UTF8*) ;;
+  *) export LC_ALL=C.UTF-8 ;;
+esac
+
+THEME_DIR="$HOME/.config/omarchy/current/theme"
+LOGO="$THEME_DIR/ascii/logo.txt"
+WIDTHS="$THEME_DIR/ascii/logo.widths"
+COLORS="$THEME_DIR/colors.toml"
+
+STYLE=type
+FRAMES=7
+DELAY=90
+LOCK_ROW=
+# The lock screen can afford a slower reveal — nothing is waiting on it, unlike
+# a shell prompt.
+LOCK_DELAY=170
+
+# A new lock session is assumed when the marker is older than this. Within one
+# session the banner types once and then stays whole; lock again after this and
+# it types afresh.
+LOCK_SESSION_RESET_MS=30000
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --style) STYLE="$2"; shift 2 ;;
+    --frames) FRAMES="$2"; shift 2 ;;
+    --delay) DELAY="$2"; shift 2 ;;
+    --lock-row) LOCK_ROW="$2"; shift 2 ;;
+    *) echo "usage: omaricethcy-banner [--style type|sweep|lines|fade|none]" \
+            "[--frames N] [--delay MS] [--lock-row N]" >&2; exit 1 ;;
+  esac
+done
+
+# Validated here rather than at the case below, which is only reached on a
+# terminal — piping would otherwise swallow a typo silently.
+case "$STYLE" in
+  type|sweep|lines|fade|none) ;;
+  *) echo "unknown style: $STYLE (expected type, sweep, lines, fade or none)" >&2; exit 1 ;;
+esac
+
+[[ ${OMARICETHCY_BANNER:-} == off ]] && exit 0
+[[ -r $LOGO ]] || exit 0
+
+mapfile -t BANNER_ROWS <"$LOGO"
+(( ${#BANNER_ROWS[@]} )) || exit 0
+
+read_cuts() {
+  if [[ -r $WIDTHS ]]; then
+    read -ra CUTS <"$WIDTHS"
+  else
+    local longest=0 line cut
+    for line in "${BANNER_ROWS[@]}"; do (( ${#line} > longest )) && longest=${#line}; done
+    CUTS=(); for (( cut = 6; cut <= longest + 6; cut += 6 )); do CUTS+=("$cut"); done
+  fi
+}
+
+# hyprlock cannot animate: an image is static and a label is one line. What it
+# can do is re-run a command on a timer, so each banner row is its own label and
+# this prints that row revealed as far as the elapsed time says. The clock is a
+# marker file, because the labels are separate processes with no shared state.
+if [[ -n $LOCK_ROW ]]; then
+  marker="${XDG_RUNTIME_DIR:-/tmp}/omaricethcy-lock-banner"
+  now=$(( $(date +%s%N) / 1000000 ))
+  started=0
+  [[ -e $marker ]] && started=$(( $(date -r "$marker" +%s%N) / 1000000 ))
+  if (( started == 0 || now - started > LOCK_SESSION_RESET_MS )); then
+    : >"$marker"; started=$now
+  fi
+
+  read_cuts
+  shown=$(( (now - started) / LOCK_DELAY + 1 ))
+  (( shown < 1 )) && shown=1
+  (( shown > ${#CUTS[@]} )) && shown=${#CUTS[@]}
+
+  # Every row is padded to the width of the widest one. hyprlock centres each
+  # label on its own, so rows of differing width would drift out of alignment
+  # with each other; equal widths keep the block square while it types.
+  widest=0
+  for line in "${BANNER_ROWS[@]}"; do (( ${#line} > widest )) && widest=${#line}; done
+  row="${BANNER_ROWS[$LOCK_ROW]:-}"
+  visible="${row:0:${CUTS[$((shown - 1))]}}"
+  # Pad in characters, not bytes. printf's field width counts bytes and these
+  # block glyphs are three bytes each, so %-*s pads them to unequal widths.
+  printf '%s%*s\n' "$visible" "$(( widest - ${#visible} ))" ""
+  exit 0
+fi
+
+read_color() {
+  sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"#([0-9a-fA-F]{6})\".*/\1/p" "$COLORS" 2>/dev/null | head -1
+}
+hex_to_rgb() { printf '%d %d %d' "0x${1:0:2}" "0x${1:2:2}" "0x${1:4:2}"; }
+
+ACCENT_HEX="$(read_color accent)"; ACCENT_HEX="${ACCENT_HEX:-e5c125}"
+BACKGROUND_HEX="$(read_color background)"; BACKGROUND_HEX="${BACKGROUND_HEX:-181716}"
+read -r AR AG AB < <(hex_to_rgb "$ACCENT_HEX")
+read -r BR BG BB < <(hex_to_rgb "$BACKGROUND_HEX")
+
+accent_escape() { printf '\033[38;2;%d;%d;%dm' "$AR" "$AG" "$AB"; }
+plain() { accent_escape; printf '%s\n' "${BANNER_ROWS[@]}"; printf '\033[0m'; }
+
+# Terminals that cannot do truecolour, and anything that is not a terminal at
+# all, get the banner without the animation rather than a screen full of escapes.
+if [[ ! -t 1 || $STYLE == none ]] || [[ ${COLORTERM:-} != truecolor && ${COLORTERM:-} != 24bit ]]; then
+  [[ -t 1 ]] && plain || printf '%s\n' "${BANNER_ROWS[@]}"
+  exit 0
+fi
+
+# Every animated style redraws by counting rows back up, which only holds if the
+# banner occupies the rows it thinks it does. In a pane too short there is no
+# stable block to redraw into, and in one too narrow the lines wrap and each
+# banner row costs two screen rows — either way the cursor lands wrong and the
+# frames eat the prompt. Print it plainly instead of corrupting the screen.
+widest=0
+for line in "${BANNER_ROWS[@]}"; do (( ${#line} > widest )) && widest=${#line}; done
+rows_available=$(tput lines 2>/dev/null || echo 24)
+columns_available=$(tput cols 2>/dev/null || echo 80)
+if (( rows_available < ${#BANNER_ROWS[@]} + 2 || columns_available < widest )); then
+  plain
+  exit 0
+fi
+
+# `read -t` looks like the fork-free way to sleep, but `-N 0` returns instantly
+# and any other -N waits on input that never comes. sleep it is; seven forks at
+# shell start is a few milliseconds and the frames actually land.
+pause() { sleep "0.$(printf '%03d' "$DELAY")"; }
+hide_cursor() { printf '\033[?25l'; }
+show_cursor() { printf '\033[?25h'; }
+trap 'show_cursor; printf "\033[0m"' EXIT INT TERM
+
+# Every style below redraws by moving the cursor back up. Printing the banner
+# near the bottom of the screen makes the terminal scroll, and a cursor-up after
+# that lands somewhere else — frames then overwrite the prompt and each other.
+# Emitting the blank lines first forces any scrolling to happen up front, so the
+# block the animation redraws into stays put.
+reserve_rows() {
+  local row
+  for (( row = 0; row < ${#BANNER_ROWS[@]}; row++ )); do printf '\n'; done
+  printf '\033[%dA' "${#BANNER_ROWS[@]}"
+}
+
+case "$STYLE" in
+  fade)
+    hide_cursor; reserve_rows
+    for (( frame = 1; frame <= FRAMES; frame++ )); do
+      (( frame > 1 )) && printf '\033[%dA' "${#BANNER_ROWS[@]}"
+      printf '\033[38;2;%d;%d;%dm' \
+        $(( BR + (AR - BR) * frame / FRAMES )) \
+        $(( BG + (AG - BG) * frame / FRAMES )) \
+        $(( BB + (AB - BB) * frame / FRAMES ))
+      printf '%s\n' "${BANNER_ROWS[@]}"
+      (( frame < FRAMES )) && pause
+    done
+    ;;
+  type)
+    # One whole letter per frame. The banner is flat text by the time it gets
+    # here, so the column each letter ends at comes from logo.widths, written
+    # alongside it by omaricethcy-ascii. Without that file, fall back to
+    # stepping a fixed width rather than refusing to animate.
+    hide_cursor; reserve_rows
+    if [[ -r $WIDTHS ]]; then
+      read -ra CUTS <"$WIDTHS"
+    else
+      longest=0
+      for line in "${BANNER_ROWS[@]}"; do (( ${#line} > longest )) && longest=${#line}; done
+      CUTS=(); for (( cut = 6; cut <= longest + 6; cut += 6 )); do CUTS+=("$cut"); done
+    fi
+    for index in "${!CUTS[@]}"; do
+      (( index > 0 )) && printf '\033[%dA' "${#BANNER_ROWS[@]}"
+      accent_escape
+      for line in "${BANNER_ROWS[@]}"; do printf '%s\033[K\n' "${line:0:${CUTS[$index]}}"; done
+      (( index < ${#CUTS[@]} - 1 )) && pause
+    done
+    ;;
+  lines)
+    hide_cursor
+    accent_escape
+    for line in "${BANNER_ROWS[@]}"; do printf '%s\n' "$line"; pause; done
+    ;;
+  sweep)
+    hide_cursor; reserve_rows
+    longest=0
+    for line in "${BANNER_ROWS[@]}"; do (( ${#line} > longest )) && longest=${#line}; done
+    # Step in columns rather than one at a time; a 40-column banner would
+    # otherwise take a second to draw.
+    step=$(( longest / FRAMES + 1 ))
+    for (( cut = step; cut <= longest + step; cut += step )); do
+      (( cut > step )) && printf '\033[%dA' "${#BANNER_ROWS[@]}"
+      accent_escape
+      for line in "${BANNER_ROWS[@]}"; do printf '%s\033[K\n' "${line:0:cut}"; done
+      (( cut <= longest )) && pause
+    done
+    ;;
+  *)
+    echo "unknown style: $STYLE" >&2; exit 1 ;;
+esac
+
+# Cursor and colour are restored by the EXIT trap.
+printf '\033[0m'

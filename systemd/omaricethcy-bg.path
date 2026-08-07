@@ -1,0 +1,22 @@
+[Unit]
+Description=Watch the Omarchy background symlink for changes
+Documentation=https://github.com/yelsed/omaricethcy
+
+[Path]
+# Anything that changes the wallpaper rewrites this symlink, whatever process it
+# runs in and whatever PATH that process has, so watching it is the only
+# interception point that depends on neither.
+#
+# The directory is watched rather than the symlink itself: `ln -nsf` replaces a
+# symlink by renaming over it, and PathChanged on a file wants a write followed
+# by a close, which a rename never produces. A rename does show up as a change
+# to the containing directory.
+#
+# Theme switches also touch this directory, which fires the unit a few extra
+# times. `omaricethcy-bg apply` exits early when swaybg is already correct, so
+# those are no-ops.
+PathChanged=%h/.config/omarchy/current
+Unit=omaricethcy-bg.service
+
+[Install]
+WantedBy=default.target

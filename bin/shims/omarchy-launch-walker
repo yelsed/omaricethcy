@@ -1,0 +1,38 @@
+#!/bin/bash
+# Shim, installed into ~/.local/bin so it precedes ~/.local/share/omarchy/bin.
+#
+# Omarchy's theme and background pickers are plain walker lists. The quickshell
+# bar ships a carousel with preview thumbnails, so route those two to it.
+#
+# Both menus reach walker through this one command:
+#   show_theme_menu()      -> omarchy-launch-walker -m menus:omarchythemes
+#   show_background_menu() -> omarchy-launch-walker -m menus:omarchyBackgroundSelector
+#
+# Intercepting here rather than shimming omarchy-menu is what makes the in-menu
+# navigation work too: those are internal function calls inside one bash process,
+# so a shim on omarchy-menu itself would never see them.
+#
+# Everything else — the app launcher, clipboard, emoji, dmenu prompts — is passed
+# straight through, and so is either picker if the carousel cannot be reached.
+
+set -euo pipefail
+
+REAL="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/bin/omarchy-launch-walker"
+SHELL_CONFIG="$HOME/.config/quickshell/bar/shell.qml"
+
+open_carousel() {
+  command -v qs >/dev/null || return 1
+  [[ -f $SHELL_CONFIG ]] || return 1
+  qs -p "$SHELL_CONFIG" ipc call picker "$1" >/dev/null 2>&1
+}
+
+for argument in "$@"; do
+  case "$argument" in
+    menus:omarchythemes)
+      open_carousel theme && exit 0 ;;
+    menus:omarchyBackgroundSelector)
+      open_carousel wallpaper && exit 0 ;;
+  esac
+done
+
+exec "$REAL" "$@"

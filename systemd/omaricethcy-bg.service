@@ -1,0 +1,14 @@
+[Unit]
+Description=Re-apply wallpapers per monitor
+Documentation=https://github.com/yelsed/omaricethcy
+
+[Service]
+Type=oneshot
+# `apply` exits early when swaybg already has the arguments it would set, so
+# the write it makes to the watched symlink does not retrigger this endlessly.
+ExecStart=%h/.local/bin/omaricethcy-bg apply
+
+# swaybg is started in the background and must outlive this unit. The default
+# KillMode of control-group SIGTERMs everything left in the cgroup once
+# ExecStart returns, which killed the wallpaper the moment it was set.
+KillMode=process

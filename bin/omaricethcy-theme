@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""Generate a complete Omarchy theme from one accent colour.
+
+    omaricethcy-theme '#e5c125' goud
+
+Writes themes/<name>/ with colors.toml plus every override the rice needs, so
+one picked colour produces a consistent desktop rather than a palette that has
+to be hand-tuned per application.
+
+The ramp keeps the seed's hue and walks its lightness down a fixed curve, which
+was fitted to the hand-authored goud ramp and reproduces it to within 7/255 per
+channel. Themes whose ramp shifts hue as it darkens (gloed) cannot be produced
+this way and stay hand-authored.
+"""
+
+import argparse
+import colorsys
+import pathlib
+import re
+import subprocess
+import sys
+
+# Lightness of each ramp step relative to step 1, and saturation relative to the
+# seed's. Both fitted to the goud ramp.
+RAMP_LIGHTNESS = [1.0, 0.8647, 0.7331, 0.6053, 0.4774, 0.3609, 0.2519, 0.1579, 0.0677, 0.0113]
+RAMP_SATURATION = [1.0, 0.928, 0.945, 0.971, 1.010, 1.058, 1.120, 1.150, 1.271, 1.271]
+
+# The primary is always dark and never derived from the accent.
+NEUTRAL = {
+    "bg": "#181716",
+    "surface": "#211f1d",
+    "overlay": "#2d2a27",
+    "muted": "#4a4541",
+    "subtle": "#837c74",
+}
+
+ERROR_HUE = 12.0
+SUCCESS_HUE = 71.0
+MIN_HUE_GAP = 22.0
+MIN_CONTRAST = 4.5
+
+REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
+
+
+def to_rgb(value):
+    value = value.lstrip("#")
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", value):
+        raise ValueError(f"not a #rrggbb colour: {value}")
+    return tuple(int(value[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def to_hex(rgb):
+    return "#" + "".join(f"{max(0, min(255, round(channel * 255))):02x}" for channel in rgb)
+
+
+def relative_luminance(rgb):
+    def linear(channel):
+        return channel / 12.92 if channel <= 0.03928 else ((channel + 0.055) / 1.055) ** 2.4
+    red, green, blue = (linear(channel) for channel in rgb)
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def contrast(foreground, background):
+    lighter, darker = sorted(
+        (relative_luminance(foreground), relative_luminance(background)), reverse=True
+    )
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def hue_distance(first, second):
+    gap = abs(first - second) % 360
+    return min(gap, 360 - gap)
+
+
+def readable(hue, saturation, background, start_lightness=0.45):
+    """Lowest-lightness colour at this hue that still clears MIN_CONTRAST."""
+    lightness = start_lightness
+    while lightness <= 0.95:
+        rgb = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
+        if contrast(rgb, background) >= MIN_CONTRAST:
+            return rgb
+        lightness += 0.01
+    return colorsys.hls_to_rgb(hue / 360, 0.95, saturation)
+
+
+def build_ramp(seed_rgb):
+    hue, lightness, saturation = colorsys.rgb_to_hls(*seed_rgb)
+    return [
+        to_hex(colorsys.hls_to_rgb(
+            hue,
+            lightness * light_ratio,
+            min(1.0, saturation * saturation_ratio),
+        ))
+        for light_ratio, saturation_ratio in zip(RAMP_LIGHTNESS, RAMP_SATURATION)
+    ]
+
+
+def push_away(target_hue, seed_hue):
+    """Move a semantic hue off the accent so the two stay distinguishable."""
+    if hue_distance(target_hue, seed_hue) >= MIN_HUE_GAP:
+        return target_hue
+    forward = (seed_hue + MIN_HUE_GAP) % 360
+    backward = (seed_hue - MIN_HUE_GAP) % 360
+    return min((forward, backward), key=lambda candidate: hue_distance(candidate, target_hue))
+
+
+def build_palette(seed_hex):
+    seed_rgb = to_rgb(seed_hex)
+    seed_hue = colorsys.rgb_to_hls(*seed_rgb)[0] * 360
+    background = to_rgb(NEUTRAL["bg"])
+    ramp = build_ramp(seed_rgb)
+
+    error = to_hex(readable(push_away(ERROR_HUE, seed_hue), 0.62, background))
+    success = to_hex(readable(push_away(SUCCESS_HUE, seed_hue), 0.51, background))
+
+    # Foreground is an off-white carrying the accent's warmth, not the accent itself.
+    # These all carry text, so each is lifted until it clears MIN_CONTRAST — blues
+    # and violets are perceptually dark and fail at a fixed lightness.
+    foreground = to_hex(readable(seed_hue, 0.42, background, 0.86))
+    foreground_dim = to_hex(readable(seed_hue, 0.28, background, 0.68))
+    bright = to_hex(readable(seed_hue, 0.83, background, 0.65))
+
+    return {
+        "ramp": ramp,
+        "accent": ramp[0],
+        "foreground": foreground,
+        "foreground_dim": foreground_dim,
+        "bright": bright,
+        "error": error,
+        "error_bright": to_hex(readable(push_away(ERROR_HUE, seed_hue), 0.62, background, 0.58)),
+        "success": success,
+        "success_bright": to_hex(readable(push_away(SUCCESS_HUE, seed_hue), 0.51, background, 0.60)),
+        **NEUTRAL,
+    }
+
+
+def rgba(hex_value, alpha):
+    red, green, blue = (round(channel * 255) for channel in to_rgb(hex_value))
+    return f"rgba({red}, {green}, {blue}, {alpha})"
+
+
+def write(path, text):
+    path.write_text(text)
+    print(f"  wrote {path.relative_to(REPOSITORY)}")
+
+
+def render(theme_dir, palette):
+    ramp = palette["ramp"]
+    accent = palette["accent"]
+    foreground = palette["foreground"]
+
+    write(theme_dir / "colors.toml", f"""accent = "{accent}"
+cursor = "{accent}"
+foreground = "{foreground}"
+background = "{palette['bg']}"
+selection_foreground = "{foreground}"
+selection_background = "{ramp[5]}"
+
+color0  = "{palette['overlay']}"
+color1  = "{palette['error']}"
+color2  = "{palette['success']}"
+color3  = "{ramp[0]}"
+color4  = "{ramp[2]}"
+color5  = "{ramp[1]}"
+color6  = "{ramp[3]}"
+color7  = "{palette['foreground_dim']}"
+color8  = "{palette['muted']}"
+color9  = "{palette['error_bright']}"
+color10 = "{palette['success_bright']}"
+color11 = "{palette['bright']}"
+color12 = "{ramp[1]}"
+color13 = "{ramp[0]}"
+color14 = "{ramp[2]}"
+color15 = "{foreground}"
+""")
+
+    write(theme_dir / "hyprland.conf", f"""# Generated by bin/omaricethcy-theme from {accent}. Replaces Omarchy's template,
+# which sets the accent border and nothing else. Sourced before
+# ~/.config/hypr/looknfeel.conf, so anything set there still wins.
+
+$activeBorderColor = rgb({accent.lstrip('#')})
+$inactiveBorderColor = rgb({palette['muted'].lstrip('#')})
+
+general {{
+    col.active_border = $activeBorderColor
+    col.inactive_border = $inactiveBorderColor
+    border_size = 1
+    gaps_in = 4
+    gaps_out = 8
+}}
+
+decoration {{
+    rounding = 16
+    active_opacity = 1.0
+    inactive_opacity = 0.92
+    fullscreen_opacity = 1.0
+
+    blur {{
+        enabled = true
+        size = 6
+        passes = 3
+        contrast = 1.0
+        brightness = 1.1
+        vibrancy = 0.16
+        vibrancy_darkness = 0.0
+        noise = 0.02
+        ignore_opacity = true
+        new_optimizations = true
+    }}
+
+    shadow {{
+        enabled = true
+        range = 20
+        render_power = 3
+        color = rgba(00000066)
+        offset = 0 4
+    }}
+}}
+
+group {{
+    col.border_active = $activeBorderColor
+    col.border_inactive = $inactiveBorderColor
+
+    groupbar {{
+        text_color = rgb({foreground.lstrip('#')})
+        gradients = false
+        height = 20
+    }}
+}}
+
+animations {{
+    enabled = true
+
+    bezier = fluentDecel, 0, 0.2, 0.4, 1
+    bezier = easeOutCubic, 0.215, 0.61, 0.355, 1
+    bezier = overshot, 0.05, 0.9, 0.1, 1.05
+
+    animation = windows, 1, 4, overshot, popin 60%
+    animation = windowsIn, 1, 4, overshot, popin 60%
+    animation = windowsOut, 1, 3, fluentDecel, popin 80%
+    animation = windowsMove, 1, 4, easeOutCubic, slide
+    animation = fade, 1, 3, fluentDecel
+    animation = workspaces, 1, 5, easeOutCubic, slidefade 15%
+    animation = specialWorkspace, 1, 5, easeOutCubic, slidefadevert 15%
+}}
+""")
+
+    write(theme_dir / "hyprlock.conf", f"""# Generated by bin/omaricethcy-theme from {accent}. Omarchy's template stops at
+# the five variables its stock lock screen uses; the rest feed the layout in
+# ~/.config/hypr/hyprlock.conf.
+
+$color = {rgba(palette['bg'], '1.0')}
+$inner_color = {rgba(palette['bg'], '0.6')}
+$outer_color = {rgba(accent, '0.55')}
+$font_color = {rgba(foreground, '1.0')}
+$check_color = {rgba(palette['success'], '0.9')}
+
+$accent_color = {rgba(accent, '1.0')}
+$accent_soft = {rgba(accent, '0.5')}
+$accent_faint = {rgba(accent, '0.05')}
+$subtle_color = {rgba(foreground, '0.45')}
+$hint_color = {rgba(foreground, '0.25')}
+$fail_color = {rgba(palette['error'], '0.9')}
+$fail_soft = {rgba(palette['error'], '0.15')}
+$caps_color = {rgba(palette['bright'], '0.9')}
+""")
+
+    write(theme_dir / "walker.css", f"""/* Generated by bin/omaricethcy-theme from {accent}. Omarchy's walker style.css
+ * sets no border-radius anywhere, so rounding and motion have to come from
+ * here. Class selectors outrank its `* {{ all: unset }}`, so these survive. */
+
+@define-color selected-text {accent};
+@define-color text {foreground};
+@define-color base {palette['bg']};
+@define-color border {accent};
+@define-color foreground {foreground};
+@define-color background {palette['bg']};
+@define-color hover {ramp[1]};
+
+.box-wrapper {{
+  background: alpha(@base, 0.92);
+  border-radius: 24px;
+  border: 2px solid alpha(@border, 0.55);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}}
+
+.search-container {{
+  background: alpha(@base, 0.6);
+  border-radius: 12px;
+  padding: 4px 14px;
+}}
+
+child {{
+  border-radius: 12px;
+}}
+
+child:selected {{
+  background: alpha(@selected-text, 0.16);
+  border-radius: 12px;
+  transition: background-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}}
+
+child:selected .item-box {{
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(6px);
+}}
+
+child:hover {{
+  background: alpha(@hover, 0.1);
+  border-radius: 12px;
+}}
+
+.keybind-hints {{
+  border-radius: 12px;
+}}
+""")
+
+    write(theme_dir / "waybar.css", f"""/* Generated by bin/omaricethcy-theme from {accent}. Omarchy's template defines
+ * only foreground and background; accent and alert exist so style.css need not
+ * hardcode hexes. */
+
+@define-color foreground {foreground};
+@define-color background {palette['bg']};
+@define-color accent {accent};
+@define-color alert {palette['error']};
+""")
+
+
+
+def render_backgrounds(theme_dir, palette, force):
+    backgrounds = theme_dir / "backgrounds"
+    backgrounds.mkdir(exist_ok=True)
+    wanted = {
+        f"{theme_dir.name}-verloop.jpg": f"gradient:{palette['ramp'][6]}-{palette['bg']}",
+        f"{theme_dir.name}-kern.jpg": f"radial-gradient:{palette['ramp'][5]}-{palette['bg']}",
+    }
+    for filename, spec in wanted.items():
+        target = backgrounds / filename
+        if target.exists() and not force:
+            continue
+        try:
+            subprocess.run(
+                ["magick", "-size", "3840x2160", spec, "-quality", "92", str(target)],
+                check=True,
+            )
+            print(f"  wrote {target.relative_to(REPOSITORY)}")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print(f"  skipped {filename} (ImageMagick unavailable)", file=sys.stderr)
+            return
+
+
+def accent_warning(palette):
+    """The seed is never silently altered, so say when it is too dark for text."""
+    ratio = contrast(to_rgb(palette["accent"]), to_rgb(palette["bg"]))
+    if ratio >= MIN_CONTRAST:
+        return None
+    return (
+        f"accent {palette['accent']} is {ratio:.2f}:1 on {palette['bg']} — below 4.5:1, so it is "
+        f"fine for borders but hard to read as text.\n"
+        f"    color11 ({palette['bright']}) is the readable variant; "
+        f"pass a lighter seed if you want the accent itself to carry text."
+    )
+
+
+def report(name, palette):
+    background = to_rgb(palette["bg"])
+    print(f"\n{name}")
+    for label in ("accent", "foreground", "error", "success"):
+        value = palette[label]
+        ratio = contrast(to_rgb(value), background)
+        flag = "" if ratio >= MIN_CONTRAST else "  << below 4.5:1"
+        print(f"  {label:<11} {value}   {ratio:.2f}:1{flag}")
+    print("  ramp        " + " ".join(palette["ramp"]))
+
+    warning = accent_warning(palette)
+    if warning:
+        print(f"\n  note: {warning}", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("accent", help="seed colour, e.g. '#e5c125'")
+    parser.add_argument("name", help="theme name, e.g. goud")
+    parser.add_argument("--apply", action="store_true", help="run `omarchy theme set <name>` afterwards")
+    parser.add_argument("--force-backgrounds", action="store_true", help="regenerate wallpapers even if present")
+    arguments = parser.parse_args()
+
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", arguments.name):
+        parser.error("theme name must be lowercase letters, digits and hyphens")
+
+    palette = build_palette(arguments.accent)
+    theme_dir = REPOSITORY / "themes" / arguments.name
+    theme_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"generating themes/{arguments.name} from {arguments.accent}")
+    render(theme_dir, palette)
+    render_backgrounds(theme_dir, palette, arguments.force_backgrounds)
+
+    for filename, contents in (
+        ("icons.theme", "Yaru-yellow\n"),
+        ("vscode.json", '{\n  "name": "Gruvbox Dark Medium",\n  "extension": "jdinhlife.gruvbox"\n}\n'),
+    ):
+        target = theme_dir / filename
+        if not target.exists():
+            write(target, contents)
+
+    report(arguments.name, palette)
+
+    if arguments.apply:
+        subprocess.run(["omarchy", "theme", "set", arguments.name], check=False)
+
+
+if __name__ == "__main__":
+    main()

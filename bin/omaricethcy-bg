@@ -1,0 +1,233 @@
+#!/bin/bash
+# Set wallpapers per monitor, matching each screen's orientation.
+#
+#   omaricethcy-bg apply          re-apply, honouring a wallpaper set elsewhere
+#   omaricethcy-bg restore        re-apply this theme's stored selection only
+#   omaricethcy-bg next           advance every screen to its next wallpaper
+#   omaricethcy-bg previous       step back
+#   omaricethcy-bg set <stem>     pick one, e.g. `set gouden-koepel`
+#   omaricethcy-bg list           show what is available and what is showing
+#
+# Omarchy runs `swaybg -i <one image> -m fill` for every output at once, which
+# turns a portrait photo on a landscape screen into a cropped slice, and a
+# landscape photo on a portrait screen into a narrow column. swaybg does support
+# -o, so this sends each output something that fits it.
+#
+# Each screen shape holds its own selection. A wallpaper is shown untouched on a
+# screen of its own shape, and via the companion built by omaricethcy-companions
+# on a screen of the other. When no wallpaper of a given shape exists — which is
+# the normal case for a set of phone wallpapers — that screen falls back to the
+# other shape's selection plus its companion, which is what this did before
+# per-screen selections existed.
+
+set -euo pipefail
+
+CURRENT_ROOT="$HOME/.config/omarchy/current"
+THEME_DIR="$CURRENT_ROOT/theme"
+BACKGROUNDS_DIR="$THEME_DIR/backgrounds"
+CURRENT_LINK="$CURRENT_ROOT/background"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omaricethcy"
+
+command="${1:-apply}"
+die() { echo "$*" >&2; exit 1; }
+
+[[ -d $BACKGROUNDS_DIR ]] || die "no backgrounds for the current theme: $BACKGROUNDS_DIR"
+
+theme_name="$(cat "$CURRENT_ROOT/theme.name" 2>/dev/null || echo unknown)"
+STATE_FILE="$STATE_DIR/$theme_name"
+
+# ── Wallpapers, and which shape each one natively is ─────────────────────────
+mapfile -t STEMS < <(
+  find -L "$BACKGROUNDS_DIR" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) -printf '%f\n' |
+  sed -E 's/\.[^.]+$//' | sort -u
+)
+(( ${#STEMS[@]} > 0 )) || die "no wallpapers found in $BACKGROUNDS_DIR"
+
+original_for() { find -L "$BACKGROUNDS_DIR" -maxdepth 1 -type f -iname "$1.*" | head -1; }
+
+declare -A NATIVE
+for stem in "${STEMS[@]}"; do
+  file="$(original_for "$stem")"
+  read -r w h < <(identify -format '%w %h\n' "$file[0]" 2>/dev/null || echo "1 1")
+  (( w >= h )) && NATIVE[$stem]=landscape || NATIVE[$stem]=portrait
+done
+
+pool_for() { # orientation -> stems natively of that shape, in order
+  local wanted="$1" stem
+  for stem in "${STEMS[@]}"; do
+    [[ ${NATIVE[$stem]} == "$wanted" ]] && echo "$stem"
+  done
+}
+
+# The file to show for a stem on a screen of a given shape: the original when the
+# shapes agree, otherwise the companion.
+file_for() {
+  local stem="$1" screen="$2" companion
+  if [[ ${NATIVE[$stem]} == "$screen" ]]; then
+    original_for "$stem"
+    return
+  fi
+  companion="$(find -L "$THEME_DIR/$screen" -maxdepth 1 -type f -iname "$stem.*" 2>/dev/null | head -1)"
+  [[ -n $companion ]] && echo "$companion" || original_for "$stem"
+}
+
+# ── Selection state, one stem per screen shape ───────────────────────────────
+declare -A SELECTED
+read_state() {
+  local key value
+  SELECTED[landscape]=""; SELECTED[portrait]=""
+  [[ -f $STATE_FILE ]] || return 0
+  while IFS='=' read -r key value; do
+    [[ -n ${value:-} ]] && SELECTED[$key]="$value"
+  done <"$STATE_FILE"
+}
+
+write_state() {
+  mkdir -p "$STATE_DIR"
+  printf 'landscape=%s\nportrait=%s\n' "${SELECTED[landscape]}" "${SELECTED[portrait]}" >"$STATE_FILE"
+}
+
+known_stem() { [[ -n ${NATIVE[$1]:-} ]]; }
+
+# Resolve a selection for one screen shape, falling back to the other shape's
+# choice when nothing of this shape exists.
+resolve() {
+  local screen="$1" other="landscape" candidate
+  [[ $screen == landscape ]] && other=portrait
+  candidate="${SELECTED[$screen]}"
+  if [[ -n $candidate ]] && known_stem "$candidate"; then echo "$candidate"; return; fi
+  candidate="$(pool_for "$screen" | head -1)"
+  if [[ -n $candidate ]]; then echo "$candidate"; return; fi
+  candidate="${SELECTED[$other]}"
+  if [[ -n $candidate ]] && known_stem "$candidate"; then echo "$candidate"; return; fi
+  echo "${STEMS[0]}"
+}
+
+# When a theme has no wallpaper of one shape, that screen's pool falls back to
+# the whole set — which is then the same list the other screen is walking, so
+# the two selections converge and collapse back to a single picture on both
+# screens. Nudge the landscape one along until they differ again.
+keep_distinct() { # screen to nudge; the other one stays put
+  local nudge="$1" guard=0
+  (( ${#STEMS[@]} > 1 )) || return 0
+  while [[ ${SELECTED[landscape]} == "${SELECTED[portrait]}" ]]; do
+    SELECTED[$nudge]="$(step "$nudge" 1 "${SELECTED[$nudge]}")"
+    (( ++guard >= ${#STEMS[@]} )) && break
+  done
+}
+
+step() { # screen  direction(+1/-1) -> next stem of that shape
+  local screen="$1" direction="$2" current="$3"
+  mapfile -t pool < <(pool_for "$screen")
+  # With no wallpaper of this shape, cycle the whole set instead so the screen
+  # still changes; it will be shown through its companion.
+  (( ${#pool[@]} == 0 )) && pool=("${STEMS[@]}")
+  local index=-1 position
+  for position in "${!pool[@]}"; do
+    [[ ${pool[$position]} == "$current" ]] && { index=$position; break; }
+  done
+  (( index < 0 )) && index=0
+  echo "${pool[$(( (index + direction + ${#pool[@]}) % ${#pool[@]} ))]}"
+}
+
+read_state
+
+# An external picker writes the symlink directly. If it points at a wallpaper
+# neither screen has selected, treat that as `set` so pickers keep working.
+if [[ $command == apply && -L $CURRENT_LINK ]]; then
+  linked="$(basename "$(readlink "$CURRENT_LINK")")"; linked="${linked%.*}"
+  if known_stem "$linked" &&
+     [[ $linked != "${SELECTED[landscape]}" && $linked != "${SELECTED[portrait]}" ]]; then
+    command=set; set -- set "$linked"
+  fi
+fi
+
+case "$command" in
+  list)
+    printf 'theme: %s\n' "$theme_name"
+    for screen in landscape portrait; do
+      printf '  %-9s screen shows: %s\n' "$screen" "$(resolve "$screen")"
+    done
+    echo
+    for stem in "${STEMS[@]}"; do
+      marker=" "
+      [[ $stem == "$(resolve landscape)" || $stem == "$(resolve portrait)" ]] && marker="*"
+      printf ' %s %-22s native %s\n' "$marker" "$stem" "${NATIVE[$stem]}"
+    done
+    exit 0
+    ;;
+  apply|restore) ;;
+  set)
+    target="${2:-}"; [[ -n $target ]] || die "usage: omaricethcy-bg set <stem>"
+    known_stem "$target" || die "no such wallpaper: $target"
+    # The pick goes to the screen its shape fits; the other screen moves on to
+    # its own next wallpaper so both change and each gets something that suits.
+    shape="${NATIVE[$target]}"
+    other=landscape; [[ $shape == landscape ]] && other=portrait
+    SELECTED[$shape]="$target"
+    SELECTED[$other]="$(step "$other" 1 "$(resolve "$other")")"
+    keep_distinct "$other"   # nudge the partner, never the pick
+    write_state
+    ;;
+  next|previous)
+    direction=1; [[ $command == previous ]] && direction=-1
+    for screen in landscape portrait; do
+      SELECTED[$screen]="$(step "$screen" "$direction" "$(resolve "$screen")")"
+    done
+    keep_distinct landscape
+    write_state
+    ;;
+  *) die "usage: omaricethcy-bg [apply|next|previous|set <stem>|list]" ;;
+esac
+
+# ── Build one swaybg invocation covering every output ────────────────────────
+# hyprctl reports the panel's native size; an odd transform means it is rotated,
+# so the effective orientation is the other way round.
+mapfile -t OUTPUTS < <(
+  hyprctl monitors -j 2>/dev/null | python3 -c '
+import json, sys
+for monitor in json.load(sys.stdin):
+    width, height = monitor["width"], monitor["height"]
+    if monitor.get("transform", 0) % 2:
+        width, height = height, width
+    print(monitor["name"], "landscape" if width >= height else "portrait")
+'
+)
+
+landscape_stem="$(resolve landscape)"
+portrait_stem="$(resolve portrait)"
+
+swaybg_arguments=()
+if (( ${#OUTPUTS[@]} == 0 )); then
+  swaybg_arguments+=(-i "$(file_for "$landscape_stem" landscape)" -m fill)
+else
+  for entry in "${OUTPUTS[@]}"; do
+    name="${entry% *}"; screen="${entry#* }"
+    stem="$landscape_stem"; [[ $screen == portrait ]] && stem="$portrait_stem"
+    swaybg_arguments+=(-o "$name" -i "$(file_for "$stem" "$screen")" -m fill)
+  done
+fi
+
+# Bail out when swaybg already shows exactly this. The path unit re-runs `apply`
+# on every change to the background symlink, including the one made below, so
+# without this the two would trigger each other forever.
+running_pid="$(pgrep -x swaybg | head -1 || true)"
+if [[ -n $running_pid && -r /proc/$running_pid/cmdline ]]; then
+  running="$(tr '\0' ' ' < "/proc/$running_pid/cmdline")"
+  [[ $running == "/usr/bin/swaybg ${swaybg_arguments[*]} " ]] &&
+    [[ $command == apply || $command == restore ]] && exit 0
+fi
+
+# Other things follow this symlink, the quickshell bar among them. Point it at
+# the main screen's wallpaper, unmodified.
+ln -nsf "$(original_for "$landscape_stem")" "$CURRENT_LINK"
+
+pkill -x swaybg || true
+setsid uwsm-app -- swaybg "${swaybg_arguments[@]}" >/dev/null 2>&1 &
+
+if [[ $landscape_stem == "$portrait_stem" ]]; then
+  echo "$landscape_stem"
+else
+  echo "landscape: $landscape_stem   portrait: $portrait_stem"
+fi

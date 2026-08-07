@@ -1,0 +1,49 @@
+/* Replaces Omarchy's generated walker.css, which is colours only.
+ *
+ * Omarchy's own walker style.css is imported after this file and sets
+ *   .box-wrapper { border: 2px solid @border; }
+ * which always wins on source order — that is the glass frame. It cannot be
+ * removed from here, so @border is set to the panel colour instead and the
+ * frame paints itself invisible. Selectors below are qualified with `window`
+ * so they outrank style.css's bare class rules.
+ */
+
+@define-color selected-text #ff8c00;
+@define-color text #f0e3d5;
+@define-color base #181716;
+@define-color border #181716;
+@define-color foreground #f0e3d5;
+@define-color background #181716;
+@define-color hover #ff6a00;
+
+window .box-wrapper {
+  background: alpha(@base, 0.94);
+  border: none;
+  border-radius: 22px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+}
+
+window .search-container {
+  background: transparent;
+  padding: 6px 16px;
+}
+
+/* The selection is marked by an accent bar on its leading edge rather than by
+ * outlining the whole panel. */
+window child:selected {
+  background: alpha(@selected-text, 0.10);
+  border-left: 4px solid @selected-text;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+window child:selected .item-box * {
+  color: @selected-text;
+}
+
+window child:hover {
+  background: alpha(@hover, 0.07);
+}
+
+window .keybind-hints {
+  background: transparent;
+}
