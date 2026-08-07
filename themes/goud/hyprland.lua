@@ -1,11 +1,7 @@
 -- Omarchy 4 form of hyprland.conf, loaded by Omarchy's
 -- require_optional.module("omarchy.current.theme.hyprland"). Runs after
--- Omarchy's own looknfeel and before ~/.config/hypr, same as the .conf did, so
+-- Omarchy's own looknfeel and before ~/.config/hypr, same as the .conf does, so
 -- personal overrides still win.
---
--- The layer rules the .conf carried are gone on purpose: they blurred walker,
--- waybar, swayosd and mako, none of which exist in Omarchy 4. Their replacement
--- is the built-in shell, whose translucency is set in shell.*.toml.
 
 local active_border_color = "rgb(e5c125)"
 local inactive_border_color = "rgb(4a4541)"

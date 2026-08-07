@@ -111,6 +111,11 @@ for theme in "${THEMES[@]}"; do
   next_theme="$fake_home/.local/state/omarchy/current/next-theme"
   mkdir -p "$next_theme" "$fake_home/.config/omarchy/themed"
   cp -rL "$theme_dir"/. "$next_theme/" 2>/dev/null || true
+  # install.sh puts this in the real ~/.config/omarchy/themed; mirror that here so
+  # the run covers the shader too, not just what lives inside the theme. A missing
+  # template is left for the shader check to report rather than aborting on `cp`.
+  cp "$REPOSITORY_DIR/templates/shader.glsl.tpl" \
+     "$fake_home/.config/omarchy/themed/" 2>/dev/null || true
 
   if HOME="$fake_home" OMARCHY_PATH="$OMARCHY_SOURCE" \
      PATH="$OMARCHY_SOURCE/bin:$PATH" \
@@ -127,6 +132,21 @@ for theme in "${THEMES[@]}"; do
     pass "theme hyprland.lua wins over hyprland.lua.tpl"
   else
     fail "hyprland.lua was overwritten by the template"
+  fi
+
+  # The shader is the opposite arrangement: no theme ships one, so it has to come
+  # out of the user template with this theme's accent substituted in.
+  accent_rgb="$(python3 -c '
+import re, sys
+accent = re.search(r"^accent\s*=\s*\"#([0-9a-fA-F]{6})\"", open(sys.argv[1]).read(), re.M).group(1)
+print(",".join(str(int(accent[index:index + 2], 16)) for index in (0, 2, 4)))
+' "$theme_dir/colors.toml")"
+  if [[ ! -f $next_theme/shader.glsl ]]; then
+    fail "shader.glsl was not rendered from the user template"
+  elif grep -q "vec3($accent_rgb)" "$next_theme/shader.glsl"; then
+    pass "shader.glsl rendered in this theme's accent (vec3($accent_rgb))"
+  else
+    fail "shader.glsl rendered, but not with vec3($accent_rgb): $(grep -m1 LOGO_COLOR "$next_theme/shader.glsl")"
   fi
 
   # --- the spliced shell.toml -----------------------------------------------

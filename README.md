@@ -486,7 +486,9 @@ bin/omaricethcy-omarchy4-dryrun goud
 bin/omaricethcy-omarchy4-dryrun --refresh    # re-pull the cached upstream clone
 ```
 
-It clones upstream into `~/.cache/omaricethcy/omarchy4`, prints which commit it ran against — Omarchy 4 is unreleased and its default branch moves — and checks, per theme, that the Lua parses, that the pipeline runs, that the theme's `hyprland.lua` beats `hyprland.lua.tpl`, that the merged `shell.toml` is valid TOML, that each `shell.*.toml` spliced in intact, and that sections the theme does *not* override still carry its palette.
+It clones upstream into `~/.cache/omaricethcy/omarchy4`, prints which commit it ran against — Omarchy 4 is unreleased and its default branch moves — and checks, per theme, that the Lua parses, that the pipeline runs, that the theme's `hyprland.lua` beats `hyprland.lua.tpl`, that the shader renders out of the user template in that theme's accent, that the merged `shell.toml` is valid TOML, that each `shell.*.toml` spliced in intact, and that sections the theme does *not* override still carry its palette.
+
+The shader is worth its own check because it works the opposite way round to everything else here: no theme ships one, so it has to come *out* of `~/.config/omarchy/themed/` with the right accent substituted in. Omarchy 4 reads that directory exactly as Omarchy 3 does.
 
 The checks were confirmed to fail on a deliberately broken setting name, a malformed `shadow.offset`, malformed TOML, and a section header that disagrees with its filename.
 
@@ -499,6 +501,7 @@ Verified on this machine — against Omarchy 3.8.4, against Omarchy 4's own `oma
 - Under the Omarchy 4 resolver, only the four intended keys change — `light_foreground`, `lighter_background`, `orange`, `brown`. Nothing else moved.
 - Both themes' `hyprland.lua` parse clean under Hyprland 0.56. That settles `shadow.offset = "0 4"`, which was the one line whose Lua spelling had been inferred rather than seen — Hyprland's own error for a bad value is *"vec2 string requires exactly 2 numbers (e.g. `1 1`)"*.
 - Omarchy 4's pipeline renders both themes, the theme-local `hyprland.lua` survives its template, and the merged `shell.toml` parses with all 13 sections and both overrides spliced in.
+- The one shader template renders under Omarchy 4 as well as Omarchy 3 — `vec3(229,193,37)` for goud, `vec3(255,140,0)` for gloed — so consolidating the two per-theme copies into it costs nothing on upgrade.
 - `hyprctl configerrors` stays clean.
 - `python3 bin/test_omaricethcy_omarchy4.py` — 6 tests, including that the committed files match what the tool produces, so a stale theme fails the suite rather than drifting quietly.
 
