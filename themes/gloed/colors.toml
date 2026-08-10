@@ -1,7 +1,44 @@
-accent = "#ff8c00"
-cursor = "#ffab40"
-foreground = "#f0e3d5"
-background = "#181716"
+# Omarchy 4 reads the semantic names; Omarchy 3 reads the ANSI slots below them.
+# Both are written out and kept consistent by bin/omaricethcy-omarchy4 — do not
+# edit one half without rerunning it.
+
+# --- Omarchy 4 semantic palette ---------------------------------------------
+mode               = "dark"
+
+accent             = "#ff8c00"
+selection          = "#7c1b00"
+muted              = "#4a4541"
+
+background         = "#181716"
+dark_background    = "#121111"
+darker_background  = "#0c0c0b"
+lighter_background = "#2d2a27"
+
+foreground         = "#f0e3d5"
+dark_foreground    = "#4a4541"
+light_foreground   = "#d3c4b4"
+bright_foreground  = "#f0e3d5"
+
+red                = "#ff3200"
+yellow             = "#ffab40"
+orange             = "#ff6a00"
+green              = "#8a9d33"
+cyan               = "#d63100"
+blue               = "#ff6a00"
+magenta            = "#ff8c00"
+brown              = "#803500"
+
+bright_red         = "#ff5c33"
+bright_yellow      = "#ffc470"
+bright_green       = "#a3b845"
+bright_cyan        = "#ff6a00"
+bright_blue        = "#ff8c00"
+bright_magenta     = "#ffab40"
+
+# --- Omarchy 3 palette ------------------------------------------------------
+# cursor is read by Omarchy 3 only. Omarchy 4 assigns the cursor from
+# bright_foreground unconditionally, so the accent-coloured cursor ends there.
+cursor               = "#ffab40"
 selection_foreground = "#f0e3d5"
 selection_background = "#7c1b00"
 

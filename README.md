@@ -137,16 +137,21 @@ A theme-local file always wins over its template. So these themes ship `colors.t
 
 ```
 themes/<name>/
-├── colors.toml      the single source of truth
-├── hyprland.conf    blur, shadow, rounding, gaps, animations, layer rules
-├── hyprlock.conf    lock screen colour variables, incl. ones Omarchy has no template for
-├── walker.css       launcher rounding and motion — the template is colours only
-├── waybar.css       adds accent and alert, so style.css need not hardcode hexes
-├── icons.theme      GTK icon theme name
-├── vscode.json      VS Code theme name and extension id
-├── neovim.lua       LazyVim colorscheme spec
-└── backgrounds/     wallpapers
+├── colors.toml           the single source of truth, in both palette schemas
+├── hyprland.conf         blur, shadow, rounding, gaps, animations
+├── hyprland.lua          the same, in the Lua config Omarchy 4 reads instead
+├── hyprlock.conf         lock screen colour variables, incl. ones Omarchy has no template for
+├── walker.css            launcher rounding and motion — the template is colours only
+├── waybar.css            adds accent and alert, so style.css need not hardcode hexes
+├── shell.bar.toml        Omarchy 4's bar, which replaces waybar
+├── shell.launcher.toml   Omarchy 4's launcher, which replaces walker
+├── icons.theme           GTK icon theme name
+├── vscode.json           VS Code theme name and extension id
+├── neovim.lua            LazyVim colorscheme spec
+└── backgrounds/          wallpapers
 ```
+
+The `.lua` and `shell.*.toml` files are inert on Omarchy 3 and the `.conf` and `.css` files are inert on Omarchy 4 — see [Ready for Omarchy 4](#ready-for-omarchy-4).
 
 ### Adding wallpapers
 
@@ -437,6 +442,82 @@ Three files live in `~/.config/` rather than in a theme, because they are layout
 
 Not yet shipped, and optional: `preview.png` and `preview-unlock.png` (theme picker thumbnails, 1800×1012 and 1920×1080) and `unlock.png` (Plymouth boot logo, 800×188).
 
+## Ready for Omarchy 4
+
+Omarchy 4 rewrites three things this rice is built on. The themes carry both versions of each, so a theme directory works on Omarchy 3 today and on Omarchy 4 whenever the machine gets there. Nothing has to be switched over on upgrade day.
+
+| | Omarchy 3 | Omarchy 4 |
+|---|---|---|
+| Palette | `color0`…`color15` | semantic names — `red`, `lighter_background`, `bright_foreground` |
+| Hyprland | hyprlang, `hyprland.conf` | Hyprland's own Lua config, `hyprland.lua` |
+| Desktop surfaces | waybar + walker + mako + swayosd + hyprlock | one built-in shell, configured by `shell.toml` |
+
+`colors.toml` holds both palettes in one file. Omarchy 3 reads the ANSI half and never sees the semantic names; Omarchy 4 prefers the semantic names and falls back to the ANSI half only for what a theme leaves out. Both halves are written by `bin/omaricethcy-omarchy4`, which reads a theme's existing palette rather than a seed colour, so hand-authored `gloed` migrates as faithfully as generated `goud`:
+
+```bash
+bin/omaricethcy-omarchy4            # every theme
+bin/omaricethcy-omarchy4 --check    # report drift, write nothing, exit 1 if stale
+```
+
+`bin/omaricethcy-theme` runs it automatically, so a newly generated theme is born with both halves.
+
+### Why the semantic names are written out rather than left to fall back
+
+Omarchy 4 can already read an Omarchy 3 palette. Relying on that costs three things, two of which are repaired here:
+
+- **`lighter_background`** falls back to `color0` — but `color0` is first overwritten with `background`. Panels and dividers would flatten into the background instead of lifting off it. Stated explicitly as `#2d2a27`.
+- **`light_foreground`** falls back to `color7`, likewise overwritten with `foreground`. The dim foreground would stop being dim. Stated explicitly.
+- **`cursor`** is assigned from `bright_foreground` unconditionally and cannot be set by a theme at all. The accent-coloured cursor does not survive Omarchy 4. Nothing in this repository can change that; it is upstream's decision, recorded here so it is not mistaken for a bug later.
+
+One value is changed on purpose rather than repaired: `orange` defaults to `yellow`, which in both themes *is* the accent, so a token meant to give a warmer step gives back the accent. It is set to `color4` instead — `#aa8f19` in goud, `#ff6a00` in gloed.
+
+Everything else Omarchy 4 derives is written out too, at the values its own `mix` would have produced. That is deliberate: the fallback cascade is upstream's compatibility shim and is free to change, whereas a name the theme states itself is not.
+
+### Testing Omarchy 4 without installing Omarchy 4
+
+Most of it can be run for real on a machine still on Omarchy 3, because neither half needs the new desktop:
+
+- **`hyprland.lua`** — Hyprland reads Lua natively since 0.55, so the installed binary *is* the parser Omarchy 4 would use. `Hyprland --verify-config` loads a config and reports errors without starting a compositor.
+- **`shell.*.toml`** — Omarchy 4's theme pipeline is plain bash. Pointed at a throwaway `HOME` and a clone of upstream, it renders exactly the files it would on a real machine.
+
+```bash
+bin/omaricethcy-omarchy4-dryrun              # both themes
+bin/omaricethcy-omarchy4-dryrun goud
+bin/omaricethcy-omarchy4-dryrun --refresh    # re-pull the cached upstream clone
+```
+
+It clones upstream into `~/.cache/omaricethcy/omarchy4`, prints which commit it ran against — Omarchy 4 is unreleased and its default branch moves — and checks, per theme, that the Lua parses, that the pipeline runs, that the theme's `hyprland.lua` beats `hyprland.lua.tpl`, that the shader renders out of the user template in that theme's accent, that the merged `shell.toml` is valid TOML, that each `shell.*.toml` spliced in intact, and that sections the theme does *not* override still carry its palette.
+
+The shader is worth its own check because it works the opposite way round to everything else here: no theme ships one, so it has to come *out* of `~/.config/omarchy/themed/` with the right accent substituted in. Omarchy 4 reads that directory exactly as Omarchy 3 does.
+
+The checks were confirmed to fail on a deliberately broken setting name, a malformed `shadow.offset`, malformed TOML, and a section header that disagrees with its filename.
+
+### What is verified, and what is not
+
+Verified on this machine — against Omarchy 3.8.4, against Omarchy 4's own `omarchy-theme-color` resolver, and against Omarchy 4's theme pipeline run through the dry run above:
+
+- Every token Omarchy 3's templates substitute resolves to exactly the value it did before the migration, for both themes.
+- Re-applying a theme regenerates all 24 per-application configs **byte-identically** to before.
+- Under the Omarchy 4 resolver, only the four intended keys change — `light_foreground`, `lighter_background`, `orange`, `brown`. Nothing else moved.
+- Both themes' `hyprland.lua` parse clean under Hyprland 0.56. That settles `shadow.offset = "0 4"`, which was the one line whose Lua spelling had been inferred rather than seen — Hyprland's own error for a bad value is *"vec2 string requires exactly 2 numbers (e.g. `1 1`)"*.
+- Omarchy 4's pipeline renders both themes, the theme-local `hyprland.lua` survives its template, and the merged `shell.toml` parses with all 13 sections and both overrides spliced in.
+- The one shader template renders under Omarchy 4 as well as Omarchy 3 — `vec3(229,193,37)` for goud, `vec3(255,140,0)` for gloed — so consolidating the two per-theme copies into it costs nothing on upgrade.
+- `hyprctl configerrors` stays clean.
+- `python3 bin/test_omaricethcy_omarchy4.py` — 6 tests, including that the committed files match what the tool produces, so a stale theme fails the suite rather than drifting quietly.
+
+What remains untested is the only part that genuinely needs Omarchy 4: whether its shell *renders* these files the way the themes intend. Parsing is not appearance. Expect to nudge alphas and sizes on the day.
+
+### What Omarchy 4 does not carry over
+
+Omarchy 4 deletes waybar, walker, mako, swayosd and hyprlock, which is most of the layer this rice hand-built in `~/.config/`. That layer is outside the theme and outside this repository, so it is not migrated here:
+
+- The nine-label hyprlock lock screen and its typed ASCII banner. Omarchy 4's lock is the built-in shell's, configured by `[lock]` in `shell.toml`, which has no per-row label mechanism.
+- The quickshell bar. Omarchy 4 ships its own; `shell.bar.toml` carries the one decision worth keeping, which is that attention is the accent rather than a second hue.
+- The borderless launcher. `shell.launcher.toml` reproduces the frameless card and accent selection; the leading-edge accent bar has no equivalent, since the launcher section has no per-side border width.
+- The `omarchy-launch-walker` and `omarchy-theme-bg-*` shims, which intercept commands that may be renamed.
+
+The per-monitor wallpaper tooling is unaffected — it drives `swaybg` directly and never went through Omarchy.
+
 ## Roadmap
 
 - **herdr.** `~/.config/herdr/config.toml` has no `[theme]` section, so the terminal workspace manager falls back to its built-in catppuccin — purple and blue against the rice. Themeable via `[theme]` / `[theme.custom]`.
@@ -447,6 +528,7 @@ Not yet shipped, and optional: `preview.png` and `preview-unlock.png` (theme pic
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
 - **Preview images.** `preview.png`, `preview-unlock.png` and `unlock.png` are still missing, so the theme picker has no thumbnail and Plymouth has no themed boot logo.
+- **The `~/.config/` layer on Omarchy 4.** The themes are ready; the hand-built layer around them is not. The lock screen, the bar and the launcher all have to be rebuilt against Omarchy 4's shell — see [What Omarchy 4 does not carry over](#what-omarchy-4-does-not-carry-over). Worth doing on the day of the upgrade, not before.
 
 ## Credits
 

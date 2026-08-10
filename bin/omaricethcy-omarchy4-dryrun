@@ -1,0 +1,208 @@
+#!/bin/bash
+# Run the themes through Omarchy 4 without installing Omarchy 4.
+#
+#   omaricethcy-omarchy4-dryrun
+#   omaricethcy-omarchy4-dryrun goud
+#   omaricethcy-omarchy4-dryrun --omarchy-path ~/src/omarchy   # an existing clone
+#   omaricethcy-omarchy4-dryrun --refresh                      # re-pull the cached clone
+#
+# Two halves of the Omarchy 4 layer can be tested on a machine still running
+# Omarchy 3, and this runs both:
+#
+#   hyprland.lua      `Hyprland --verify-config` loads a Lua config and reports
+#                     errors without starting a compositor. Hyprland 0.55+ reads
+#                     Lua natively, so the installed binary is the real parser —
+#                     nothing about it is specific to Omarchy 4.
+#   shell.*.toml      Omarchy 4's theme pipeline is plain bash. Pointed at a
+#                     throwaway HOME and a clone of upstream, it renders the same
+#                     files it would on a real machine, so the section overrides
+#                     can be spliced and the result parsed for real.
+#
+# What this cannot tell you is whether Omarchy 4's shell *renders* the result the
+# way the theme intends. That needs the shell, and the shell needs Omarchy 4.
+
+set -euo pipefail
+
+REPOSITORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omaricethcy"
+OMARCHY_SOURCE="$CACHE_DIR/omarchy4"
+UPSTREAM="https://github.com/basecamp/omarchy.git"
+REFRESH=0
+THEMES=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --omarchy-path) OMARCHY_SOURCE="$2"; shift 2 ;;
+    --refresh) REFRESH=1; shift ;;
+    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    -*) echo "unknown option: $1" >&2; exit 1 ;;
+    *) THEMES+=("$1"); shift ;;
+  esac
+done
+
+for command in git python3 Hyprland; do
+  command -v "$command" >/dev/null || { echo "$command is required" >&2; exit 1; }
+done
+
+# tomllib landed in 3.11 and is what proves the spliced shell.toml still parses.
+python3 -c 'import tomllib' 2>/dev/null || {
+  echo "python3 3.11+ is required (tomllib)" >&2
+  exit 1
+}
+
+if [[ ! -d $OMARCHY_SOURCE/.git ]]; then
+  echo "cloning Omarchy into $OMARCHY_SOURCE"
+  mkdir -p "$(dirname "$OMARCHY_SOURCE")"
+  git clone --depth 1 --quiet "$UPSTREAM" "$OMARCHY_SOURCE"
+elif [[ $REFRESH -eq 1 ]]; then
+  echo "refreshing $OMARCHY_SOURCE"
+  git -C "$OMARCHY_SOURCE" fetch --depth 1 --quiet origin
+  git -C "$OMARCHY_SOURCE" reset --hard --quiet origin/HEAD
+fi
+
+# Omarchy 4 is unreleased, so upstream's default branch moves. Say which commit
+# the run was against, or a later failure is unattributable.
+echo "upstream $(git -C "$OMARCHY_SOURCE" log --oneline -1)"
+
+if [[ ! -f $OMARCHY_SOURCE/default/themed/shell.toml.tpl ]]; then
+  echo "that clone has no default/themed/shell.toml.tpl — not an Omarchy 4 tree" >&2
+  exit 1
+fi
+
+if [[ ${#THEMES[@]} -eq 0 ]]; then
+  for theme_dir in "$REPOSITORY_DIR"/themes/*/; do THEMES+=("$(basename "$theme_dir")"); done
+fi
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+failures=0
+fail() { echo "    FAIL  $1"; failures=$((failures + 1)); }
+pass() { echo "    ok    $1"; }
+
+for theme in "${THEMES[@]}"; do
+  theme_dir="$REPOSITORY_DIR/themes/$theme"
+  [[ -d $theme_dir ]] || { echo "no such theme: $theme" >&2; exit 1; }
+  echo
+  echo "$theme"
+
+  # --- hyprland.lua, parsed by the installed Hyprland ------------------------
+  if [[ -f $theme_dir/hyprland.lua ]]; then
+    entry="$WORK/$theme-verify.lua"
+    printf 'dofile("%s")\n' "$theme_dir/hyprland.lua" >"$entry"
+    # Hyprland exits non-zero on a bad config, which under `set -e` would kill this
+    # script at exactly the point it is supposed to report the failure. Take the
+    # output and judge it here instead.
+    result="$(Hyprland --verify-config -c "$entry" 2>/dev/null || true)"
+    result="$(grep -v '^\s*$' <<<"$result" | grep -vE 'DEBUG|Config parsing result' | tail -3)"
+    if [[ $result == *"config ok"* ]]; then
+      pass "hyprland.lua parses (Hyprland $(hyprctl version 2>/dev/null | head -1 | awk '{print $2}'))"
+    else
+      fail "hyprland.lua rejected by Hyprland: ${result:-no output}"
+    fi
+  else
+    fail "hyprland.lua is missing — run bin/omaricethcy-omarchy4"
+  fi
+
+  # --- the theme through Omarchy 4's own pipeline ----------------------------
+  # Copy rather than link: the pipeline writes into this directory, and following
+  # a link would have it write into the repository.
+  fake_home="$WORK/$theme-home"
+  next_theme="$fake_home/.local/state/omarchy/current/next-theme"
+  mkdir -p "$next_theme" "$fake_home/.config/omarchy/themed"
+  cp -rL "$theme_dir"/. "$next_theme/" 2>/dev/null || true
+  # install.sh puts this in the real ~/.config/omarchy/themed; mirror that here so
+  # the run covers the shader too, not just what lives inside the theme. A missing
+  # template is left for the shader check to report rather than aborting on `cp`.
+  cp "$REPOSITORY_DIR/templates/shader.glsl.tpl" \
+     "$fake_home/.config/omarchy/themed/" 2>/dev/null || true
+
+  if HOME="$fake_home" OMARCHY_PATH="$OMARCHY_SOURCE" \
+     PATH="$OMARCHY_SOURCE/bin:$PATH" \
+     bash "$OMARCHY_SOURCE/bin/omarchy-theme-set-templates" >"$WORK/$theme.log" 2>&1; then
+    pass "Omarchy 4 theme pipeline runs"
+  else
+    fail "Omarchy 4 theme pipeline: $(tail -2 "$WORK/$theme.log" | tr '\n' ' ')"
+    continue
+  fi
+
+  # A theme-local file must beat its template, which is the whole reason shipping
+  # hyprland.lua works at all.
+  if cmp -s "$next_theme/hyprland.lua" "$theme_dir/hyprland.lua"; then
+    pass "theme hyprland.lua wins over hyprland.lua.tpl"
+  else
+    fail "hyprland.lua was overwritten by the template"
+  fi
+
+  # The shader is the opposite arrangement: no theme ships one, so it has to come
+  # out of the user template with this theme's accent substituted in.
+  accent_rgb="$(python3 -c '
+import re, sys
+accent = re.search(r"^accent\s*=\s*\"#([0-9a-fA-F]{6})\"", open(sys.argv[1]).read(), re.M).group(1)
+print(",".join(str(int(accent[index:index + 2], 16)) for index in (0, 2, 4)))
+' "$theme_dir/colors.toml")"
+  if [[ ! -f $next_theme/shader.glsl ]]; then
+    fail "shader.glsl was not rendered from the user template"
+  elif grep -q "vec3($accent_rgb)" "$next_theme/shader.glsl"; then
+    pass "shader.glsl rendered in this theme's accent (vec3($accent_rgb))"
+  else
+    fail "shader.glsl rendered, but not with vec3($accent_rgb): $(grep -m1 LOGO_COLOR "$next_theme/shader.glsl")"
+  fi
+
+  # --- the spliced shell.toml -----------------------------------------------
+  python3 - "$next_theme/shell.toml" "$theme_dir" <<'PY' || failures=$((failures + 1))
+import pathlib
+import re
+import sys
+import tomllib
+
+shell_toml, theme_dir = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+
+try:
+    merged = tomllib.loads(shell_toml.read_text())
+except tomllib.TOMLDecodeError as error:
+    print(f"    FAIL  merged shell.toml does not parse: {error}")
+    raise SystemExit(1)
+print(f"    ok    merged shell.toml parses, {len(merged)} sections")
+
+failed = False
+for override in sorted(theme_dir.glob("shell.*.toml")):
+    # Omarchy takes the section name from the filename, so a header that disagrees
+    # with it silently leaves the section unspliced.
+    section = override.name[len("shell."):-len(".toml")]
+    declared = tomllib.loads(override.read_text())
+    if section not in declared:
+        failed = True
+        print(f"    FAIL  {override.name} declares {list(declared) or 'nothing'}, "
+              f"but Omarchy will splice it as [{section}]")
+        continue
+    wanted = declared[section]
+    got = merged.get(section)
+    if got == wanted:
+        print(f"    ok    [{section}] spliced in from {override.name}")
+    else:
+        failed = True
+        differing = [key for key in wanted if got is None or got.get(key) != wanted[key]]
+        print(f"    FAIL  [{section}] did not splice cleanly: {', '.join(differing) or 'section missing'}")
+
+# A section the theme does not override still has to have been rendered from its
+# colors.toml, or the palette never reached the shell.
+accent = re.search(r'^accent\s*=\s*"(#[0-9a-fA-F]{6})"',
+                   (theme_dir / "colors.toml").read_text(), re.MULTILINE).group(1)
+if merged.get("menu", {}).get("selected-text", "").lower() == accent.lower():
+    print(f"    ok    untouched sections carry the palette (menu.selected-text {accent})")
+else:
+    failed = True
+    print(f"    FAIL  menu.selected-text is {merged.get('menu', {}).get('selected-text')}, expected {accent}")
+
+raise SystemExit(1 if failed else 0)
+PY
+done
+
+echo
+if (( failures )); then
+  echo "$failures check(s) failed"
+  exit 1
+fi
+echo "all checks passed"
+echo "still untested: whether Omarchy 4's shell renders this the way the theme intends."
