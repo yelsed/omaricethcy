@@ -120,6 +120,18 @@ mkdir -p "$HOOK_DIR"
 ln -sf "$REPOSITORY_DIR/hooks/60-omaricethcy-bg.sh" "$HOOK_DIR/60-omaricethcy-bg.sh"
 note "linked 60-omaricethcy-bg.sh into $HOOK_DIR"
 
+# ── Cursors ──────────────────────────────────────────────────────────────────
+# A cursor theme is looked up by name from a fixed set of directories, so it
+# cannot live inside an Omarchy theme. Build one per theme in that theme's
+# accent, and hook the switch so the pointer follows `omarchy theme set`.
+say "Building the cursor themes"
+if "$REPOSITORY_DIR/bin/omaricethcy-cursor" 2>&1 | sed 's/^/    /'; then
+  ln -sf "$REPOSITORY_DIR/hooks/70-omaricethcy-cursor.sh" "$HOOK_DIR/70-omaricethcy-cursor.sh"
+  note "linked 70-omaricethcy-cursor.sh into $HOOK_DIR"
+else
+  note "warning: cursor themes not built, keeping whatever pointer is set"
+fi
+
 # ── Wallpaper watcher ────────────────────────────────────────────────────────
 # The shims only fire for callers that resolve them through PATH. A long-running
 # process started before the shims existed — the quickshell bar, typically — keeps

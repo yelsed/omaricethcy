@@ -169,7 +169,7 @@ def colors_toml(colors, palette):
 """
 
 
-def hyprland_lua(palette):
+def hyprland_lua(palette, name):
     accent = palette["accent"].lstrip("#")
     inactive = palette["muted"].lstrip("#")
     text = palette["foreground"].lstrip("#")
@@ -181,6 +181,12 @@ def hyprland_lua(palette):
 
 local active_border_color = "rgb({accent})"
 local inactive_border_color = "rgb({inactive})"
+
+-- Built by bin/omaricethcy-cursor into ~/.local/share/icons. Read once at
+-- startup, so switching themes in a running session needs the hyprctl setcursor
+-- in hooks/70-omaricethcy-cursor.sh as well.
+hl.env("XCURSOR_THEME", "omaricethcy-{name}")
+hl.env("HYPRCURSOR_THEME", "omaricethcy-{name}")
 
 hl.config({{
   general = {{
@@ -315,7 +321,7 @@ def migrate(theme_dir, check):
     palette = semantic_palette(colors)
     wanted = {
         "colors.toml": colors_toml(colors, palette),
-        "hyprland.lua": hyprland_lua(palette),
+        "hyprland.lua": hyprland_lua(palette, theme_dir.name),
         "shell.bar.toml": shell_bar_toml(palette),
         "shell.launcher.toml": shell_launcher_toml(palette),
     }

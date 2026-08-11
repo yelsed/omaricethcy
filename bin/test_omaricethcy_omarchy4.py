@@ -44,7 +44,7 @@ def test_shipped_themes_are_in_sync_with_the_tool():
         palette = migration.semantic_palette(colors)
         for filename, produced in (
             ("colors.toml", migration.colors_toml(colors, palette)),
-            ("hyprland.lua", migration.hyprland_lua(palette)),
+            ("hyprland.lua", migration.hyprland_lua(palette, theme_dir.name)),
             ("shell.bar.toml", migration.shell_bar_toml(palette)),
             ("shell.launcher.toml", migration.shell_launcher_toml(palette)),
         ):

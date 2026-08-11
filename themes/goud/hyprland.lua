@@ -6,6 +6,12 @@
 local active_border_color = "rgb(e5c125)"
 local inactive_border_color = "rgb(4a4541)"
 
+-- Built by bin/omaricethcy-cursor into ~/.local/share/icons. Read once at
+-- startup, so switching themes in a running session needs the hyprctl setcursor
+-- in hooks/70-omaricethcy-cursor.sh as well.
+hl.env("XCURSOR_THEME", "omaricethcy-goud")
+hl.env("HYPRCURSOR_THEME", "omaricethcy-goud")
+
 hl.config({
   general = {
     col = {
