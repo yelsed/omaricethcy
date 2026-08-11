@@ -57,6 +57,7 @@ GLYPHS = {
 }
 FALLBACK = ["█████", "█████", "█████", "█████", "▀▀▀▀▀", "     "]
 ROWS = 6
+BLOCK = "█"
 
 
 # Doubling a row is not a matter of printing it twice: a half block fills half a
@@ -82,7 +83,10 @@ def scale_glyph(glyph, factor):
 def banner(word, scale=1):
     glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
     height = len(glyphs[0]) if glyphs else ROWS
-    rows = [" ".join(glyph[row] for glyph in glyphs).rstrip() for row in range(height)]
+    # The gap between letters is scaled along with them. Left at one cell it
+    # stays hairline while the strokes get thicker, and the word closes up.
+    gap = " " * scale
+    rows = [gap.join(glyph[row] for glyph in glyphs).rstrip() for row in range(height)]
     # The glyphs carry a blank row for descender spacing, which scaling
     # multiplies. Empty rows cost a wasted hyprlock label each, so drop them.
     while rows and not rows[-1].strip():
@@ -98,7 +102,7 @@ def letter_boundaries(word, scale=1):
     glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
     boundaries, column = [], 0
     for index, glyph in enumerate(glyphs):
-        column += len(glyph[0]) + (1 if index else 0)
+        column += len(glyph[0]) + (scale if index else 0)
         boundaries.append(column)
     return boundaries
 
@@ -113,24 +117,55 @@ def read_palette(theme_dir):
     return colors
 
 
-def draw(lines, accent, background, output, point_size, width=None, height=None):
-    """Draw the banner with ImageMagick. The block characters need a font that
-    actually has them, so use the same Nerd Font the rest of the rice uses."""
-    fonts = subprocess.run(["magick", "-list", "font"], capture_output=True, text=True).stdout
-    available = {row.split(":", 1)[1].strip() for row in fonts.splitlines() if "Font:" in row}
-    font = next((name for name in ("FiraCode-Nerd-Font-Mono", "JetBrainsMono-Nerd-Font-Mono",
-                                   "DejaVu-Sans-Mono-for-Powerline", "DejaVu-Sans-Mono")
-                 if name in available), None)
+def cell_grid(lines, accent, background):
+    """One pixel per banner cell, as a PAM for ImageMagick to read on stdin.
 
-    command = ["magick", "-background", background, "-fill", accent, "-pointsize", str(point_size)]
-    if font:
-        command += ["-font", font]
-    command += [f"label:{chr(10).join(lines)}", "-bordercolor", background, "-border", "40x28"]
+    Not drawn as text: a font lays a block character out on its own advance and
+    line height, and neither is exactly one cell, so the blocks fail to tile and
+    the word arrives full of seams and half-row shifts. A pixel per cell has no
+    metrics to disagree with."""
+    def channels(color):
+        if color == "none":
+            return (0, 0, 0, 0)
+        value = color.lstrip("#")
+        return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4)) + (255,)
+
+    ink, paper = bytes(channels(accent)), bytes(channels(background))
+    columns = max(len(line) for line in lines)
+
+    # Every row becomes two, so the half blocks have somewhere to go and a cell
+    # ends up square — a terminal cell is about twice as tall as it is wide, and
+    # the letter shapes are drawn expecting that.
+    body = bytearray()
+    for line in lines:
+        padded = line.ljust(columns)
+        for half in (0, 1):
+            for character in padded:
+                filled = DOUBLED.get(character, (character, character))[half] == BLOCK
+                body += ink if filled else paper
+
+    header = (f"P7\nWIDTH {columns}\nHEIGHT {len(lines) * 2}\nDEPTH 4\nMAXVAL 255\n"
+              f"TUPLTYPE RGB_ALPHA\nENDHDR\n").encode()
+    return header + bytes(body), columns, len(lines) * 2
+
+
+def draw(lines, accent, background, output, cell_pixels, width=None, height=None):
+    """Blow the cell grid up with nearest-neighbour, so the edges stay hard."""
+    grid, columns, rows = cell_grid(lines, accent, background)
+
     if width and height:
-        command += ["-resize", f"{width}x{height}", "-gravity", "center",
-                    "-background", background, "-extent", f"{width}x{height}"]
-    command += [str(output)]
-    subprocess.run(command, check=True)
+        # Fit the plate with a whole number of pixels per cell, or the blocks
+        # land on fractional boundaries and the letters blur back together.
+        padding = round(height * 0.12)
+        cell_pixels = max(1, min((width - 2 * padding) // columns,
+                                 (height - 2 * padding) // rows))
+    scaled = f"{columns * cell_pixels}x{rows * cell_pixels}"
+
+    command = ["magick", "pam:-", "-filter", "point", "-resize", f"{scaled}!"]
+    if width and height:
+        command += ["-gravity", "center", "-background", background,
+                    "-extent", f"{width}x{height}"]
+    subprocess.run(command + [str(output)], input=grid, check=True)
 
 
 def build(theme_dir, name, scale=2):
@@ -153,11 +188,15 @@ def build(theme_dir, name, scale=2):
         print("  ImageMagick missing, skipping the PNG variants", file=sys.stderr)
         return
 
-    draw(lines, accent, background, ascii_dir / "logo.png", 42)
+    draw(lines, accent, background, ascii_dir / "logo.png", 12)
     print(f"  wrote {(ascii_dir / 'logo.png').relative_to(REPOSITORY)}")
 
     # Plymouth wants a wide, short logo; stock Omarchy themes ship 800x188.
-    draw(lines, accent, background, theme_dir / "unlock.png", 42, 800, 188)
+    # Transparent, not the theme background: omarchy-plymouth-set passes the
+    # background to Plymouth as `printf "%.3f"` floats, and Plymouth truncates
+    # them back to bytes, so #181716 is painted as #171615. A baked-in plate
+    # would show as a rectangle one value off from the screen behind it.
+    draw(lines, accent, "none", theme_dir / "unlock.png", 12, 800, 188)
     print(f"  wrote {(theme_dir / 'unlock.png').relative_to(REPOSITORY)}")
 
 
