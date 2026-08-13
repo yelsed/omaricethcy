@@ -24,6 +24,8 @@ One command. Every step is idempotent, and anything outside this repository is b
 | Themes | Symlinks each `themes/<name>/` into `~/.config/omarchy/themes/`. Symlinks, not copies, so edits here are live on the next `omarchy theme set`. Both `omarchy theme list` and `omarchy-theme-set` handle symlinked theme directories natively. |
 | Tools | Links `bin/omaricethcy-*` into `~/.local/bin` |
 | Wallpaper hook | Installs `hooks/60-omaricethcy-bg.sh` into `~/.config/omarchy/hooks/theme-set.d/` so the per-monitor split survives a theme change, and binds `SUPER SHIFT W` to the cycler |
+| Cursors | Builds a cursor theme in each theme's accent and installs `hooks/70-omaricethcy-cursor.sh` so the pointer follows a theme change |
+| Boot splash | Installs `hooks/80-omaricethcy-unlock.sh`, which syncs the Plymouth and SDDM logo with the active theme. Does not run the sync itself — it needs sudo and rebuilds the initramfs. |
 | Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active |
 | Ghostty | Adds the `config-file` line for the theme palette and points `custom-shader` at the theme's shader. Warns if a hardcoded `theme =` line is still overriding the rice. |
 | Default terminal | Puts Ghostty first in `~/.config/xdg-terminals.list` and registers `x-scheme-handler/terminal` |
@@ -330,13 +332,14 @@ omaricethcy-ascii --scale 1    # 5 rows x 23 columns
 omaricethcy-ascii --scale 2    # 9 rows x 41 columns, the default
 ```
 
-It writes three files per theme, because each surface needs a different form:
+It writes two files per theme, because text and pixels are both needed:
 
 | File | Used by |
 |---|---|
-| `ascii/logo.txt` | fastfetch's logo, and the shell greeting |
-| `ascii/logo.png` | the lock screen — hyprlock labels are single-line and the banner is six |
-| `unlock.png` | the Plymouth boot logo, at the 800x188 the stock themes use |
+| `ascii/logo.txt` | fastfetch's logo, the shell greeting, and the lock screen |
+| `unlock.png` | the Plymouth boot logo and the SDDM login screen, at the 800x188 the stock themes use |
+
+`unlock.png` is drawn on transparency rather than on the theme background. `omarchy-plymouth-set` hands Plymouth the background as `printf "%.3f"` floats and Plymouth truncates them back to bytes, so `#181716` is painted as `#171615` — a baked-in plate shows up as a rectangle one value off from the screen behind it.
 
 fastfetch colours it with ANSI `yellow`, which is `color3` and therefore the accent, so it follows the theme with no per-theme wiring.
 
@@ -369,11 +372,15 @@ Two costs worth knowing. The rows are padded to equal width because hyprlock cen
 
 fastfetch stays static; it renders its logo once and exits. The other moving piece is the Ghostty background shader — a spinning ASCII logo, separate from all of this.
 
-The boot splash is the one piece `install.sh` does not wire up — `omarchy-plymouth-set-by-theme` is marked `requires-sudo` and rebuilds the initramfs, which is not something an installer should do behind your back:
+**Boot splash and login screen.** These two live in `/usr/share` rather than in a theme, so they do not follow `omarchy theme set` on their own — `omarchy-plymouth-set-by-theme` pushes the theme's `unlock.png` and colours into both Plymouth and SDDM. `hooks/80-omaricethcy-unlock.sh` runs it on a theme switch, in a floating terminal because a hook has no terminal for sudo to prompt on, and only when the installed pair is actually out of date: it asks for sudo and rebuilds the initramfs, which is far too much to spend on a switch that changes nothing.
+
+`install.sh` links the hook but does not run the sync, for the same reason — an installer should not rebuild your initramfs behind your back. Do the theme that is already active once by hand:
 
 ```bash
 omarchy plymouth set-by-theme gloed   # asks for sudo, rebuilds initramfs
 ```
+
+`omarchy-refresh-sddm` restores the stock login theme and undoes this; the next theme switch puts it back.
 
 ### The launcher
 
@@ -440,7 +447,7 @@ Three files live in `~/.config/` rather than in a theme, because they are layout
 - `~/.config/waybar/style.css` — bar layout. Imports the theme's `waybar.css`; uses `@alert` rather than a hex.
 - `~/.config/ghostty/config` — must contain `config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"` or Ghostty ignores the theme entirely, and `custom-shader = "~/.config/omarchy/current/theme/shader.glsl"` so the shader switches with the theme.
 
-Not yet shipped, and optional: `preview.png` and `preview-unlock.png` (theme picker thumbnails, 1800×1012 and 1920×1080) and `unlock.png` (Plymouth boot logo, 800×188).
+Not yet shipped, and optional: `preview-unlock.png` (the unlocks menu thumbnail, 1920×1080).
 
 ## Ready for Omarchy 4
 
@@ -527,7 +534,7 @@ The per-monitor wallpaper tooling is unaffected — it drives `swaybg` directly 
 - **Background menu.** Omarchy exposes no hook for its own background picker, so choosing a wallpaper there sets one image across both screens. `SUPER SHIFT W` restores the per-monitor split.
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
-- **Preview images.** `preview.png`, `preview-unlock.png` and `unlock.png` are still missing, so the theme picker has no thumbnail and Plymouth has no themed boot logo.
+- **Preview images.** `preview-unlock.png` is still missing, so the themes do not appear in Omarchy's unlocks menu — that menu lists only themes that ship one.
 - **The `~/.config/` layer on Omarchy 4.** The themes are ready; the hand-built layer around them is not. The lock screen, the bar and the launcher all have to be rebuilt against Omarchy 4's shell — see [What Omarchy 4 does not carry over](#what-omarchy-4-does-not-carry-over). Worth doing on the day of the upgrade, not before.
 
 ## Credits

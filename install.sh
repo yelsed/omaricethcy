@@ -132,6 +132,15 @@ else
   note "warning: cursor themes not built, keeping whatever pointer is set"
 fi
 
+# ── Boot splash and login screen ─────────────────────────────────────────────
+# Both live in /usr/share rather than in a theme, so they do not follow a theme
+# switch on their own. The hook syncs them; it is not run here, because the sync
+# needs sudo and rebuilds the initramfs — see the README on doing that once by
+# hand for the theme that is already active.
+say "Installing the boot splash hook"
+ln -sf "$REPOSITORY_DIR/hooks/80-omaricethcy-unlock.sh" "$HOOK_DIR/80-omaricethcy-unlock.sh"
+note "linked 80-omaricethcy-unlock.sh into $HOOK_DIR"
+
 # ── Wallpaper watcher ────────────────────────────────────────────────────────
 # The shims only fire for callers that resolve them through PATH. A long-running
 # process started before the shims existed — the quickshell bar, typically — keeps

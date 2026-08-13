@@ -4,12 +4,12 @@
     omaricethcy-ascii goud
     omaricethcy-ascii --all
 
-Writes into themes/<name>/ascii/:
+Writes per theme:
 
-    logo.txt      the banner, plain text — fastfetch logo, shell greeting
-    logo.png      the same banner drawn in the accent colour on the background,
-                  for surfaces that cannot render text themselves (hyprlock)
-    unlock.png    a wide, short variant for the Plymouth boot logo
+    ascii/logo.txt      the banner, plain text — fastfetch logo, shell greeting
+    ascii/logo.widths   the column each letter ends at, for the lock screen
+    unlock.png          the banner drawn in the accent colour, wide and short,
+                        for the Plymouth boot logo and the SDDM login screen
 
 No figlet on this system and none worth adding as a dependency, so the letter
 forms live here. Only the characters theme names need are defined; anything
@@ -171,7 +171,6 @@ def draw(lines, accent, background, output, cell_pixels, width=None, height=None
 def build(theme_dir, name, scale=2):
     colors = read_palette(theme_dir)
     accent = colors.get("accent", "#e5c125")
-    background = colors.get("background", "#181716")
 
     ascii_dir = theme_dir / "ascii"
     ascii_dir.mkdir(exist_ok=True)
@@ -185,11 +184,8 @@ def build(theme_dir, name, scale=2):
     print(f"  wrote {(ascii_dir / 'logo.widths').relative_to(REPOSITORY)}")
 
     if not shutil.which("magick"):
-        print("  ImageMagick missing, skipping the PNG variants", file=sys.stderr)
+        print("  ImageMagick missing, skipping the PNG", file=sys.stderr)
         return
-
-    draw(lines, accent, background, ascii_dir / "logo.png", 12)
-    print(f"  wrote {(ascii_dir / 'logo.png').relative_to(REPOSITORY)}")
 
     # Plymouth wants a wide, short logo; stock Omarchy themes ship 800x188.
     # Transparent, not the theme background: omarchy-plymouth-set passes the
