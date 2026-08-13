@@ -26,7 +26,7 @@ One command. Every step is idempotent, and anything outside this repository is b
 | Wallpaper hook | Installs `hooks/60-omaricethcy-bg.sh` into `~/.config/omarchy/hooks/theme-set.d/` so the per-monitor split survives a theme change, and binds `SUPER SHIFT W` to the cycler |
 | Cursors | Builds a cursor theme in each theme's accent and installs `hooks/70-omaricethcy-cursor.sh` so the pointer follows a theme change |
 | Boot splash | Installs `hooks/80-omaricethcy-unlock.sh`, which syncs the Plymouth and SDDM logo with the active theme. Does not run the sync itself — it needs sudo and rebuilds the initramfs. |
-| Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active |
+| Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active. `omaricethcy-shader` turns it off and on. |
 | Ghostty | Adds the `config-file` line for the theme palette and points `custom-shader` at the theme's shader. Warns if a hardcoded `theme =` line is still overriding the rice. |
 | Default terminal | Puts Ghostty first in `~/.config/xdg-terminals.list` and registers `x-scheme-handler/terminal` |
 | Waybar | Turns off Omarchy's Waybar, persistently — the rice uses the quickshell bar, and Waybar would sit on top of it |
@@ -438,6 +438,21 @@ const vec3  LOGO_COLOR      = vec3({{ accent_rgb }}) / 255.0;
 `install.sh` links it into `~/.config/omarchy/themed/`, which Omarchy renders into the active theme on every `omarchy theme set`, substituting from that theme's `colors.toml`. `{{ accent_rgb }}` expands to a decimal triple, hence the `/ 255.0`.
 
 Two things fall out of this beyond removing the duplication. Themes generated later get the shader without doing anything. And so do Omarchy's own themes — switching to catppuccin now gives a catppuccin-blue logo rather than a dangling `custom-shader` path.
+
+#### Turning it off
+
+The shader costs a little GPU on every focused window, and sometimes you want the terminal plain — for a screen recording, or on battery:
+
+```bash
+omaricethcy-shader          # toggle
+omaricethcy-shader off
+omaricethcy-shader on
+omaricethcy-shader status
+```
+
+It comments the `custom-shader` line in `~/.config/ghostty/config` out and back in, rather than moving files around: the line points at the active theme, and that has to keep working when it comes back. The setting survives a theme switch, because Omarchy does not regenerate that file.
+
+Open windows change immediately. Ghostty reloads its configuration only from inside a window and has no CLI action for it, so the switch sends each open window the `ctrl+shift+,` reload keybind through `hyprctl dispatch sendshortcut` — in place, without focusing them. Rebinding `reload_config` in Ghostty breaks that half; the config edit still lands, and a new window picks it up.
 
 ### Configs outside the theme
 
