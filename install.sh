@@ -18,6 +18,7 @@ TERMINALS_LIST="$HOME/.config/xdg-terminals.list"
 HOOK_DIR="$HOME/.config/omarchy/hooks/theme-set.d"
 OMARCHY_USER_TEMPLATES="$HOME/.config/omarchy/themed"
 BINDINGS_CONF="$HOME/.config/hypr/bindings.conf"
+HYPRLOCK_CONF="$HOME/.config/hypr/hyprlock.conf"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
 THEME="goud"
@@ -140,6 +141,20 @@ fi
 say "Installing the boot splash hook"
 ln -sf "$REPOSITORY_DIR/hooks/80-omaricethcy-unlock.sh" "$HOOK_DIR/80-omaricethcy-unlock.sh"
 note "linked 80-omaricethcy-unlock.sh into $HOOK_DIR"
+
+# ── Lock screen ──────────────────────────────────────────────────────────────
+# The lock screen shares its layout with the two screens above, so it belongs
+# here rather than as a hand-edit on one machine. Only the geometry is fixed;
+# the colours come from whichever theme is active.
+say "Installing the lock screen layout"
+if [[ -L $HYPRLOCK_CONF ]]; then
+  rm "$HYPRLOCK_CONF"
+elif [[ -e $HYPRLOCK_CONF ]]; then
+  backup "$HYPRLOCK_CONF"
+  rm "$HYPRLOCK_CONF"
+fi
+ln -s "$REPOSITORY_DIR/config/hypr/hyprlock.conf" "$HYPRLOCK_CONF"
+note "linked hyprlock.conf"
 
 # ── Wallpaper watcher ────────────────────────────────────────────────────────
 # The shims only fire for callers that resolve them through PATH. A long-running
