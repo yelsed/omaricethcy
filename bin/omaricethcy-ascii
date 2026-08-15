@@ -8,8 +8,10 @@ Writes per theme:
 
     ascii/logo.txt      the banner, plain text — fastfetch logo, shell greeting
     ascii/logo.widths   the column each letter ends at, for the lock screen
-    unlock.png          the banner drawn in the accent colour, wide and short,
-                        for the Plymouth boot logo and the SDDM login screen
+    unlock.png          the banner drawn in the accent colour, for the Plymouth
+                        boot logo and the SDDM login screen
+    unlock.widths       the same boundaries in pixels, for the login screen's
+                        letter-by-letter reveal
 
 No figlet on this system and none worth adding as a dependency, so the letter
 forms live here. Only the characters theme names need are defined; anything
@@ -58,6 +60,15 @@ GLYPHS = {
 FALLBACK = ["█████", "█████", "█████", "█████", "▀▀▀▀▀", "     "]
 ROWS = 6
 BLOCK = "█"
+
+# The boot splash, the login screen and the lock screen all draw this banner, and
+# they only read as one screen if it is the same size on each. The lock screen
+# draws it as text rather than as this image, so the two have to be reconciled:
+# measured off a screenshot, hyprlock renders FiraCode Nerd Font Mono at 18
+# pixels per cell for a font_size of 22, and a full block spans two cells. Nine
+# pixels per cell is therefore font_size 11 exactly, with no rounding either way.
+# Change one and the other has to follow.
+UNLOCK_CELL_PIXELS = 9
 
 
 # Doubling a row is not a matter of printing it twice: a half block fills half a
@@ -149,23 +160,12 @@ def cell_grid(lines, accent, background):
     return header + bytes(body), columns, len(lines) * 2
 
 
-def draw(lines, accent, background, output, cell_pixels, width=None, height=None):
+def draw(lines, accent, background, output, cell_pixels):
     """Blow the cell grid up with nearest-neighbour, so the edges stay hard."""
     grid, columns, rows = cell_grid(lines, accent, background)
-
-    if width and height:
-        # Fit the plate with a whole number of pixels per cell, or the blocks
-        # land on fractional boundaries and the letters blur back together.
-        padding = round(height * 0.12)
-        cell_pixels = max(1, min((width - 2 * padding) // columns,
-                                 (height - 2 * padding) // rows))
     scaled = f"{columns * cell_pixels}x{rows * cell_pixels}"
-
-    command = ["magick", "pam:-", "-filter", "point", "-resize", f"{scaled}!"]
-    if width and height:
-        command += ["-gravity", "center", "-background", background,
-                    "-extent", f"{width}x{height}"]
-    subprocess.run(command + [str(output)], input=grid, check=True)
+    subprocess.run(["magick", "pam:-", "-filter", "point", "-resize", f"{scaled}!",
+                    str(output)], input=grid, check=True)
 
 
 def build(theme_dir, name, scale=2):
@@ -187,13 +187,27 @@ def build(theme_dir, name, scale=2):
         print("  ImageMagick missing, skipping the PNG", file=sys.stderr)
         return
 
-    # Plymouth wants a wide, short logo; stock Omarchy themes ship 800x188.
-    # Transparent, not the theme background: omarchy-plymouth-set passes the
-    # background to Plymouth as `printf "%.3f"` floats, and Plymouth truncates
-    # them back to bytes, so #181716 is painted as #171615. A baked-in plate
-    # would show as a rectangle one value off from the screen behind it.
-    draw(lines, accent, "none", theme_dir / "unlock.png", 12, 800, 188)
+    # Exactly the letters, no plate around them. Padding is what let the boot
+    # splash and the login screen anchor differently without it showing: one
+    # centres the image, the other centres the image and the password box
+    # together, and 62 rows of transparent margin absorbed the difference.
+    #
+    # Transparent rather than the theme background for a second reason:
+    # omarchy-plymouth-set passes the background to Plymouth as `printf "%.3f"`
+    # floats, and Plymouth truncates them back to bytes, so #181716 is painted as
+    # #171615. A baked-in plate would show as a rectangle one value off from the
+    # screen behind it.
+    draw(lines, accent, "none", theme_dir / "unlock.png", UNLOCK_CELL_PIXELS)
     print(f"  wrote {(theme_dir / 'unlock.png').relative_to(REPOSITORY)}")
+
+    # The login screen types the banner out the way the lock screen does, but it
+    # is QML and cannot read the theme directory at runtime, so the column each
+    # letter ends at is baked into its Main.qml from here. banner() strips
+    # trailing blanks, so the last boundary overshoots what was actually drawn.
+    drawn = max(len(line) for line in lines) * UNLOCK_CELL_PIXELS
+    pixels = [min(boundary * UNLOCK_CELL_PIXELS, drawn) for boundary in boundaries]
+    (theme_dir / "unlock.widths").write_text(" ".join(str(p) for p in pixels) + "\n")
+    print(f"  wrote {(theme_dir / 'unlock.widths').relative_to(REPOSITORY)}")
 
 
 def main():
