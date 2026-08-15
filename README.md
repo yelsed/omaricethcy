@@ -531,14 +531,18 @@ What remains untested is the only part that genuinely needs Omarchy 4: whether i
 
 ### What Omarchy 4 does not carry over
 
-Omarchy 4 deletes waybar, walker, mako, swayosd and hyprlock, which is most of the layer this rice hand-built in `~/.config/`. That layer is outside the theme and outside this repository, so it is not migrated here:
+Omarchy 4 deletes waybar, walker, mako, swayosd, hyprlock and swaybg, which is most of the layer this rice hand-built in `~/.config/`.
 
-- The nine-label hyprlock lock screen and its typed ASCII banner. Omarchy 4's lock is the built-in shell's, configured by `[lock]` in `shell.toml`, which has no per-row label mechanism.
+The Hyprland half of that layer now lives here, in `config/hypr/*.lua`, and `install.sh` links it on any machine that has an `~/.config/hypr/hyprland.lua` — that file is what tells Omarchy 4 apart from Omarchy 3, whose `.conf` tree it never sources. It is deliberately small. Omarchy 4 already binds the terminal, the browser, the web apps, 1Password, Obsidian, Signal, Spotify and lazydocker to the same keys this rice used to restate by hand, so only what genuinely differs is kept: the two monitors, the input tuning and its per-terminal scroll factors, `SUPER + SHIFT + T` for btop, `SUPER + SHIFT + W` taken back from Omawrite for the wallpaper cycler, and Blender's opacity rules.
+
+Everything else in that layer is a rebuild rather than a migration:
+
+- The nine-label hyprlock lock screen and its typed ASCII banner. Omarchy 4's lock is the built-in shell's, configured by `[lock]` in `shell.toml`, which has no per-row label mechanism. There is no `shell.lock.toml` here yet, so the lock screen falls back to Omarchy's own colours.
 - The quickshell bar. Omarchy 4 ships its own; `shell.bar.toml` carries the one decision worth keeping, which is that attention is the accent rather than a second hue.
 - The borderless launcher. `shell.launcher.toml` reproduces the frameless card and accent selection; the leading-edge accent bar has no equivalent, since the launcher section has no per-side border width.
 - The `omarchy-launch-walker` and `omarchy-theme-bg-*` shims, which intercept commands that may be renamed.
 
-The per-monitor wallpaper tooling is unaffected — it drives `swaybg` directly and never went through Omarchy.
+The per-monitor wallpaper tooling does need work, contrary to what this section said before it was checked. It drives `swaybg` directly and never went through Omarchy, but Omarchy 4 retires the package and renders the background inside the shell instead, from `~/.local/state/omarchy/current/background`. Keeping the split means reinstalling `swaybg`, disabling the `omarchy.background` plugin in `shell.json`, and following the state path to its new home.
 
 ## Roadmap
 
@@ -550,7 +554,9 @@ The per-monitor wallpaper tooling is unaffected — it drives `swaybg` directly 
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
 - **Preview images.** `preview-unlock.png` is still missing, so the themes do not appear in Omarchy's unlocks menu — that menu lists only themes that ship one.
-- **The `~/.config/` layer on Omarchy 4.** The themes are ready; the hand-built layer around them is not. The lock screen, the bar and the launcher all have to be rebuilt against Omarchy 4's shell — see [What Omarchy 4 does not carry over](#what-omarchy-4-does-not-carry-over). Worth doing on the day of the upgrade, not before.
+- **The shell layer on Omarchy 4.** The themes and the Hyprland configuration are ready; the shell surfaces are not. The lock screen has no `shell.lock.toml`, and the bar and launcher have only their colour overrides — see [What Omarchy 4 does not carry over](#what-omarchy-4-does-not-carry-over).
+- **Per-monitor wallpapers on Omarchy 4.** `swaybg` is retired there and the background moves inside the shell, so the split needs `swaybg` reinstalled, `omarchy.background` disabled, and the watch pointed at `~/.local/state/omarchy/current/background`.
+- **Middle-click autoscroll.** The `hypr-autoscroll` plugin and its binding are commented out in `config/hypr/`. hyprpm builds against a specific Hyprland commit and refuses to load when the two drift; until `hyprpm reload` succeeds, an unloaded plugin's dispatcher is a config error on every reload.
 
 ## Credits
 

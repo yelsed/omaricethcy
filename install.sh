@@ -174,17 +174,43 @@ else
   note "warning: omaricethcy-bg.path did not start"
 fi
 
-# ── Wallpaper keybinding ─────────────────────────────────────────────────────
-say "Binding SUPER SHIFT W to the wallpaper cycler"
-if [[ -f $BINDINGS_CONF ]] && grep -q 'omaricethcy-bg next' "$BINDINGS_CONF"; then
-  note "already bound"
+# ── Hyprland configuration ───────────────────────────────────────────────────
+# Omarchy 4 reads Lua and Omarchy 3 reads .conf, and the two layouts do not
+# overlap: Omarchy 4's hyprland.lua never sources the .conf tree. The presence
+# of hyprland.lua is what tells the two apart.
+#
+# On Omarchy 4 the whole personal layer is linked out of this repository, so a
+# fresh machine gets the monitors, the input tuning, the extra bindings and the
+# window rules along with the themes. Each file replaces Omarchy's stock one and
+# is loaded after Omarchy's defaults, so it overrides rather than competes.
+#
+# On Omarchy 3 there is nothing to link — that layer was hand-written per
+# machine — so only the one binding this rice owns is appended, as before.
+if [[ -f $HOME/.config/hypr/hyprland.lua ]]; then
+  say "Installing the Hyprland configuration"
+  for source in "$REPOSITORY_DIR"/config/hypr/*.lua; do
+    target="$HOME/.config/hypr/$(basename "$source")"
+    if [[ -L $target ]]; then
+      rm "$target"
+    elif [[ -e $target ]]; then
+      backup "$target"
+      rm "$target"
+    fi
+    ln -s "$source" "$target"
+    note "linked $(basename "$source")"
+  done
 else
-  backup "$BINDINGS_CONF"
-  printf '\n%s\n%s\n' \
-    '# Cycle wallpapers per monitor (omaricethcy)' \
-    'bindd = SUPER SHIFT, W, Next wallpaper, exec, omaricethcy-bg next' \
-    >>"$BINDINGS_CONF"
-  note "added SUPER SHIFT W"
+  say "Binding SUPER SHIFT W to the wallpaper cycler"
+  if [[ -f $BINDINGS_CONF ]] && grep -q 'omaricethcy-bg next' "$BINDINGS_CONF"; then
+    note "already bound"
+  else
+    backup "$BINDINGS_CONF"
+    printf '\n%s\n%s\n' \
+      '# Cycle wallpapers per monitor (omaricethcy)' \
+      'bindd = SUPER SHIFT, W, Next wallpaper, exec, omaricethcy-bg next' \
+      >>"$BINDINGS_CONF"
+    note "added SUPER SHIFT W"
+  fi
 fi
 
 # ── Shader template ──────────────────────────────────────────────────────────
