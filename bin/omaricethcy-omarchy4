@@ -296,6 +296,7 @@ selected-background       = "{palette['accent']}"
 selected-background-alpha = 0.16
 selected-text             = "{palette['accent']}"
 selected-border           = "{palette['accent']}"
+selected-border-width     = 1
 selected-border-alpha     = 1.0
 """
 

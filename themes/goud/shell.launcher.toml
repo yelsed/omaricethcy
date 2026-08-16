@@ -16,4 +16,5 @@ selected-background       = "#e5c125"
 selected-background-alpha = 0.16
 selected-text             = "#e5c125"
 selected-border           = "#e5c125"
+selected-border-width     = 1
 selected-border-alpha     = 1.0

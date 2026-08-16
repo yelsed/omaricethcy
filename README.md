@@ -157,6 +157,7 @@ themes/<name>/
 ├── shell.bar.toml        generated bar override; attention uses the accent
 ├── shell.launcher.toml   generated muted container and selected-row accent frame
 ├── shell.menu.toml       generated Super+Space menu frame and selected-row treatment
+├── icons.theme           GTK icon theme name
 ├── vscode.json           VS Code theme name and extension id
 ├── neovim.lua            LazyVim colorscheme spec
 ├── unlock.png            the banner, for the boot splash and the login screen

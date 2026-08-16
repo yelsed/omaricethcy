@@ -66,6 +66,7 @@ def test_launcher_has_visible_container_and_selection_frame():
             "selected-background-alpha = 0.16",
             f'selected-text             = "{palette["accent"]}"',
             f'selected-border           = "{palette["accent"]}"',
+            "selected-border-width     = 1",
             "selected-border-alpha     = 1.0",
         )
         for expected_line in expected_lines:
@@ -85,6 +86,7 @@ def test_menu_has_visible_container_and_selection_frame():
             "selected-background-alpha = 0.16",
             f'selected-text             = "{palette["accent"]}"',
             f'selected-border           = "{palette["accent"]}"',
+            "selected-border-width     = 1",
             "selected-border-alpha     = 1.0",
         )
         for expected_line in expected_lines:
