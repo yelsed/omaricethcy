@@ -405,7 +405,7 @@ Earlier rounds of this rice restyled Walker and a separately-installed quickshel
 omaricethcy-preview          # rebuild for every theme
 ```
 
-It composes 1800x1012 from the theme's own assets — a dimmed wallpaper backdrop, an accent rule, the theme name, and the ramp and semantic swatches. Nothing is screenshotted, so previews are reproducible and carry none of the desktop's contents.
+It composes 1800x1012 from the theme's own assets — a dimmed wallpaper backdrop, an accent rule, and the ramp and semantic swatches. `preview.png` carries no theme label because Omarchy supplies the name outside the image. Nothing is screenshotted, so previews are reproducible and carry none of the desktop's contents.
 
 Why each override exists, rather than taking the generated version:
 
