@@ -4,12 +4,14 @@
     omaricethcy-ascii goud
     omaricethcy-ascii --all
 
-Writes into themes/<name>/ascii/:
+Writes per theme:
 
-    logo.txt      the banner, plain text — fastfetch logo, shell greeting
-    logo.png      the same banner drawn in the accent colour on the background,
-                  for surfaces that cannot render text themselves (hyprlock)
-    unlock.png    a wide, short variant for the Plymouth boot logo
+    ascii/logo.txt      the banner, plain text — fastfetch logo, shell greeting
+    ascii/logo.widths   the column each letter ends at, for the lock screen
+    unlock.png          the banner drawn in the accent colour, for the Plymouth
+                        boot logo and the SDDM login screen
+    unlock.widths       the same boundaries in pixels, for the login screen's
+                        letter-by-letter reveal
 
 No figlet on this system and none worth adding as a dependency, so the letter
 forms live here. Only the characters theme names need are defined; anything
@@ -57,6 +59,16 @@ GLYPHS = {
 }
 FALLBACK = ["█████", "█████", "█████", "█████", "▀▀▀▀▀", "     "]
 ROWS = 6
+BLOCK = "█"
+
+# The boot splash, the login screen and the lock screen all draw this banner, and
+# they only read as one screen if it is the same size on each. The lock screen
+# draws it as text rather than as this image, so the two have to be reconciled:
+# measured off a screenshot, hyprlock renders FiraCode Nerd Font Mono at 18
+# pixels per cell for a font_size of 22, and a full block spans two cells. Nine
+# pixels per cell is therefore font_size 11 exactly, with no rounding either way.
+# Change one and the other has to follow.
+UNLOCK_CELL_PIXELS = 9
 
 
 # Doubling a row is not a matter of printing it twice: a half block fills half a
@@ -82,7 +94,10 @@ def scale_glyph(glyph, factor):
 def banner(word, scale=1):
     glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
     height = len(glyphs[0]) if glyphs else ROWS
-    rows = [" ".join(glyph[row] for glyph in glyphs).rstrip() for row in range(height)]
+    # The gap between letters is scaled along with them. Left at one cell it
+    # stays hairline while the strokes get thicker, and the word closes up.
+    gap = " " * scale
+    rows = [gap.join(glyph[row] for glyph in glyphs).rstrip() for row in range(height)]
     # The glyphs carry a blank row for descender spacing, which scaling
     # multiplies. Empty rows cost a wasted hyprlock label each, so drop them.
     while rows and not rows[-1].strip():
@@ -98,7 +113,7 @@ def letter_boundaries(word, scale=1):
     glyphs = [scale_glyph(GLYPHS.get(character.upper(), FALLBACK), scale) for character in word]
     boundaries, column = [], 0
     for index, glyph in enumerate(glyphs):
-        column += len(glyph[0]) + (1 if index else 0)
+        column += len(glyph[0]) + (scale if index else 0)
         boundaries.append(column)
     return boundaries
 
@@ -113,30 +128,49 @@ def read_palette(theme_dir):
     return colors
 
 
-def draw(lines, accent, background, output, point_size, width=None, height=None):
-    """Draw the banner with ImageMagick. The block characters need a font that
-    actually has them, so use the same Nerd Font the rest of the rice uses."""
-    fonts = subprocess.run(["magick", "-list", "font"], capture_output=True, text=True).stdout
-    available = {row.split(":", 1)[1].strip() for row in fonts.splitlines() if "Font:" in row}
-    font = next((name for name in ("FiraCode-Nerd-Font-Mono", "JetBrainsMono-Nerd-Font-Mono",
-                                   "DejaVu-Sans-Mono-for-Powerline", "DejaVu-Sans-Mono")
-                 if name in available), None)
+def cell_grid(lines, accent, background):
+    """One pixel per banner cell, as a PAM for ImageMagick to read on stdin.
 
-    command = ["magick", "-background", background, "-fill", accent, "-pointsize", str(point_size)]
-    if font:
-        command += ["-font", font]
-    command += [f"label:{chr(10).join(lines)}", "-bordercolor", background, "-border", "40x28"]
-    if width and height:
-        command += ["-resize", f"{width}x{height}", "-gravity", "center",
-                    "-background", background, "-extent", f"{width}x{height}"]
-    command += [str(output)]
-    subprocess.run(command, check=True)
+    Not drawn as text: a font lays a block character out on its own advance and
+    line height, and neither is exactly one cell, so the blocks fail to tile and
+    the word arrives full of seams and half-row shifts. A pixel per cell has no
+    metrics to disagree with."""
+    def channels(color):
+        if color == "none":
+            return (0, 0, 0, 0)
+        value = color.lstrip("#")
+        return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4)) + (255,)
+
+    ink, paper = bytes(channels(accent)), bytes(channels(background))
+    columns = max(len(line) for line in lines)
+
+    # Every row becomes two, so the half blocks have somewhere to go and a cell
+    # ends up square — a terminal cell is about twice as tall as it is wide, and
+    # the letter shapes are drawn expecting that.
+    body = bytearray()
+    for line in lines:
+        padded = line.ljust(columns)
+        for half in (0, 1):
+            for character in padded:
+                filled = DOUBLED.get(character, (character, character))[half] == BLOCK
+                body += ink if filled else paper
+
+    header = (f"P7\nWIDTH {columns}\nHEIGHT {len(lines) * 2}\nDEPTH 4\nMAXVAL 255\n"
+              f"TUPLTYPE RGB_ALPHA\nENDHDR\n").encode()
+    return header + bytes(body), columns, len(lines) * 2
+
+
+def draw(lines, accent, background, output, cell_pixels):
+    """Blow the cell grid up with nearest-neighbour, so the edges stay hard."""
+    grid, columns, rows = cell_grid(lines, accent, background)
+    scaled = f"{columns * cell_pixels}x{rows * cell_pixels}"
+    subprocess.run(["magick", "pam:-", "-filter", "point", "-resize", f"{scaled}!",
+                    str(output)], input=grid, check=True)
 
 
 def build(theme_dir, name, scale=2):
     colors = read_palette(theme_dir)
     accent = colors.get("accent", "#e5c125")
-    background = colors.get("background", "#181716")
 
     ascii_dir = theme_dir / "ascii"
     ascii_dir.mkdir(exist_ok=True)
@@ -150,15 +184,30 @@ def build(theme_dir, name, scale=2):
     print(f"  wrote {(ascii_dir / 'logo.widths').relative_to(REPOSITORY)}")
 
     if not shutil.which("magick"):
-        print("  ImageMagick missing, skipping the PNG variants", file=sys.stderr)
+        print("  ImageMagick missing, skipping the PNG", file=sys.stderr)
         return
 
-    draw(lines, accent, background, ascii_dir / "logo.png", 42)
-    print(f"  wrote {(ascii_dir / 'logo.png').relative_to(REPOSITORY)}")
-
-    # Plymouth wants a wide, short logo; stock Omarchy themes ship 800x188.
-    draw(lines, accent, background, theme_dir / "unlock.png", 42, 800, 188)
+    # Exactly the letters, no plate around them. Padding is what let the boot
+    # splash and the login screen anchor differently without it showing: one
+    # centres the image, the other centres the image and the password box
+    # together, and 62 rows of transparent margin absorbed the difference.
+    #
+    # Transparent rather than the theme background for a second reason:
+    # omarchy-plymouth-set passes the background to Plymouth as `printf "%.3f"`
+    # floats, and Plymouth truncates them back to bytes, so #181716 is painted as
+    # #171615. A baked-in plate would show as a rectangle one value off from the
+    # screen behind it.
+    draw(lines, accent, "none", theme_dir / "unlock.png", UNLOCK_CELL_PIXELS)
     print(f"  wrote {(theme_dir / 'unlock.png').relative_to(REPOSITORY)}")
+
+    # The login screen types the banner out the way the lock screen does, but it
+    # is QML and cannot read the theme directory at runtime, so the column each
+    # letter ends at is baked into its Main.qml from here. banner() strips
+    # trailing blanks, so the last boundary overshoots what was actually drawn.
+    drawn = max(len(line) for line in lines) * UNLOCK_CELL_PIXELS
+    pixels = [min(boundary * UNLOCK_CELL_PIXELS, drawn) for boundary in boundaries]
+    (theme_dir / "unlock.widths").write_text(" ".join(str(p) for p in pixels) + "\n")
+    print(f"  wrote {(theme_dir / 'unlock.widths').relative_to(REPOSITORY)}")
 
 
 def main():

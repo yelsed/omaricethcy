@@ -10,8 +10,13 @@ set -euo pipefail
 
 REAL="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/bin/omarchy-theme-bg-next"
 
-if command -v omaricethcy-bg >/dev/null && omaricethcy-bg next >/dev/null 2>&1; then
-  exit 0
+if command -v omaricethcy-bg >/dev/null; then
+  # `omarchy theme set` finishes by calling this, and cycling there would leave
+  # every theme switch showing a wallpaper nobody asked for — and, since the
+  # cycle is recorded, would lose the pair that theme was showing. The theme-set
+  # hook re-applies the stored pair straight after, so there is nothing to do.
+  omaricethcy-bg theme-changed 2>/dev/null && exit 0
+  omaricethcy-bg next >/dev/null 2>&1 && exit 0
 fi
 
 exec "$REAL" "$@"

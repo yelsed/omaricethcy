@@ -1,8 +1,0 @@
-/* Replaces Omarchy's generated waybar.css, which defines only foreground and
- * background. accent and alert exist so ~/.config/waybar/style.css can stop
- * hardcoding hexes. */
-
-@define-color foreground #f0e3d5;
-@define-color background #181716;
-@define-color accent #ff8c00;
-@define-color alert #ff3200;

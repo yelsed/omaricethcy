@@ -44,14 +44,53 @@ def test_shipped_themes_are_in_sync_with_the_tool():
         palette = migration.semantic_palette(colors)
         for filename, produced in (
             ("colors.toml", migration.colors_toml(colors, palette)),
-            ("hyprland.lua", migration.hyprland_lua(palette)),
+            ("hyprland.lua", migration.hyprland_lua(palette, theme_dir.name)),
             ("shell.bar.toml", migration.shell_bar_toml(palette)),
             ("shell.launcher.toml", migration.shell_launcher_toml(palette)),
+            ("shell.menu.toml", migration.shell_menu_toml(palette)),
         ):
             on_disk = (theme_dir / filename).read_text()
             assert on_disk == produced, f"{theme_dir.name}/{filename} is stale, rerun bin/omaricethcy-omarchy4"
 
 
+def test_launcher_has_visible_container_and_selection_frame():
+    """Each shipped theme gives the launcher and its selected row a restrained frame."""
+    for theme_dir in THEMES:
+        colors = migration.parse_colors(theme_dir / "colors.toml")
+        palette = migration.semantic_palette(colors)
+        launcher = migration.shell_launcher_toml(palette)
+        expected_lines = (
+            f'border                    = "{palette["muted"]}"',
+            "border-alpha              = 0.80",
+            f'selected-background       = "{palette["accent"]}"',
+            "selected-background-alpha = 0.16",
+            f'selected-text             = "{palette["accent"]}"',
+            f'selected-border           = "{palette["accent"]}"',
+            "selected-border-width     = 1",
+            "selected-border-alpha     = 1.0",
+        )
+        for expected_line in expected_lines:
+            assert expected_line in launcher, f"{theme_dir.name}: missing {expected_line}"
+
+
+def test_menu_has_visible_container_and_selection_frame():
+    """Super+Space must use the same restrained frame as the launcher."""
+    for theme_dir in THEMES:
+        colors = migration.parse_colors(theme_dir / "colors.toml")
+        palette = migration.semantic_palette(colors)
+        menu = migration.shell_menu_toml(palette)
+        expected_lines = (
+            f'border                    = "{palette["muted"]}"',
+            "border-alpha              = 0.80",
+            f'selected-background       = "{palette["accent"]}"',
+            "selected-background-alpha = 0.16",
+            f'selected-text             = "{palette["accent"]}"',
+            f'selected-border           = "{palette["accent"]}"',
+            "selected-border-width     = 1",
+            "selected-border-alpha     = 1.0",
+        )
+        for expected_line in expected_lines:
+            assert expected_line in menu, f"{theme_dir.name}: missing {expected_line}"
 def test_omarchy_3_tokens_all_survive():
     for theme_dir in THEMES:
         values = parse_as_omarchy_3((theme_dir / "colors.toml").read_text())
@@ -77,6 +116,17 @@ def test_semantic_names_agree_with_the_ansi_slots():
             assert colors[name] == colors[slot], \
                 f"{theme_dir.name}: {name} {colors[name]} but {slot} {colors[slot]}"
 
+
+def test_terminal_roles_are_distinct():
+    """Terminal roles must remain individually recognizable across shipped themes."""
+    roles = ("red", "green", "yellow", "blue", "magenta", "cyan")
+    for theme_dir in THEMES:
+        colors = migration.parse_colors(theme_dir / "colors.toml")
+        role_colors = [colors[role] for role in roles]
+        assert len(set(role_colors)) == len(role_colors), theme_dir.name
+        for role in ("blue", "magenta", "cyan"):
+            assert colors[role] not in (colors["orange"], colors["yellow"]), \
+                f"{theme_dir.name}: {role} duplicates orange or yellow"
 
 def test_mix_matches_omarchys_rounding():
     """Values written here have to equal the ones Omarchy would derive, or a theme

@@ -123,11 +123,10 @@ def semantic_palette(colors):
     for name, slot in {**FROM_ANSI, **FROM_ANSI_OVERWRITTEN}.items():
         palette[name] = colors[slot]
 
-    # Omarchy defaults orange to yellow, which in both themes here is the accent
-    # itself — a token that resolves to the accent is no use to anything wanting a
-    # warmer step. color4 is that step in a warm ramp.
-    palette["orange"] = colors["color4"]
-    palette["brown"] = mix(palette["orange"], "#000000", 0.50)
+    # Omarchy defaults orange to yellow. Themes can state distinct warm roles, so
+    # preserve their explicit orange and brown values when present.
+    palette["orange"] = colors.get("orange", colors["color4"])
+    palette["brown"] = colors.get("brown", mix(palette["orange"], "#000000", 0.50))
     return palette
 
 
@@ -169,7 +168,7 @@ def colors_toml(colors, palette):
 """
 
 
-def hyprland_lua(palette):
+def hyprland_lua(palette, name):
     accent = palette["accent"].lstrip("#")
     inactive = palette["muted"].lstrip("#")
     text = palette["foreground"].lstrip("#")
@@ -181,6 +180,12 @@ def hyprland_lua(palette):
 
 local active_border_color = "rgb({accent})"
 local inactive_border_color = "rgb({inactive})"
+
+-- Built by bin/omaricethcy-cursor into ~/.local/share/icons. Read once at
+-- startup, so switching themes in a running session needs the hyprctl setcursor
+-- in hooks/70-omaricethcy-cursor.sh as well.
+hl.env("XCURSOR_THEME", "omaricethcy-{name}")
+hl.env("HYPRCURSOR_THEME", "omaricethcy-{name}")
 
 hl.config({{
   general = {{
@@ -263,9 +268,7 @@ def shell_bar_toml(palette):
 background       = "{palette['background']}"
 background-alpha = 1.0
 text             = "{palette['foreground']}"
-# The generated bar colours attention modules (recording, alerts, updates) with
-# `red`, which puts a second hue on a bar that otherwise carries none. Attention
-# is the accent here, the same decision the quickshell bar made.
+# Attention modules use `accent`, matching the `palette['accent']` output below.
 active           = "{palette['accent']}"
 scale-with-font  = true
 size-horizontal  = 26
@@ -273,30 +276,37 @@ size-vertical    = 28
 """
 
 
-def shell_launcher_toml(palette):
-    return f"""# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+def shell_framed_surface_toml(section, palette, background_alpha):
+    """Generate a complete Omarchy shell surface with a restrained selection frame."""
+    return f"""# Replaces the [{section}] section of Omarchy 4's generated shell.toml. A section
 # override replaces the whole section, so every key the generated one sets is
 # repeated here even where the value is unchanged.
 
-[launcher]
+[{section}]
 background                = "{palette['background']}"
-background-alpha          = 0.94
+background-alpha          = {background_alpha}
 text                      = "{palette['foreground']}"
-# Borderless. The generated launcher frames the card in the Hyprland active-border
-# colour; this rice drops that frame and lets the shadow do the separating.
-border                    = "{palette['background']}"
-border-alpha              = 0.0
+# The muted border gives the surface a visible, restrained container.
+border                    = "{palette['muted']}"
+border-alpha              = 0.80
 scrim                     = "{palette['background']}"
 scrim-alpha               = 0.5
-# The walker build marked the selected row with an accent bar on its leading edge.
-# The launcher section has no per-side border width, so the accent tint and accent
-# text carry the selection on their own.
+# The selected row uses an accent tint and complete accent frame.
 selected-background       = "{palette['accent']}"
-selected-background-alpha = 0.10
+selected-background-alpha = 0.16
 selected-text             = "{palette['accent']}"
 selected-border           = "{palette['accent']}"
-selected-border-alpha     = 0.0
+selected-border-width     = 1
+selected-border-alpha     = 1.0
 """
+
+
+def shell_launcher_toml(palette):
+    return shell_framed_surface_toml("launcher", palette, 0.94)
+
+
+def shell_menu_toml(palette):
+    return shell_framed_surface_toml("menu", palette, 1.0)
 
 
 def migrate(theme_dir, check):
@@ -315,9 +325,10 @@ def migrate(theme_dir, check):
     palette = semantic_palette(colors)
     wanted = {
         "colors.toml": colors_toml(colors, palette),
-        "hyprland.lua": hyprland_lua(palette),
+        "hyprland.lua": hyprland_lua(palette, theme_dir.name),
         "shell.bar.toml": shell_bar_toml(palette),
         "shell.launcher.toml": shell_launcher_toml(palette),
+        "shell.menu.toml": shell_menu_toml(palette),
     }
 
     print(theme_dir.name)
