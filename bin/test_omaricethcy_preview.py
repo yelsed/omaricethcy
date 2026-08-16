@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Self-check for picker previews. Run: python3 bin/test_omaricethcy_preview.py"""
 
+import contextlib
+import io
 import importlib.machinery
 import importlib.util
 import pathlib
+import tempfile
 
 BIN = pathlib.Path(__file__).resolve().parent
 REPOSITORY = BIN.parent
@@ -45,13 +48,17 @@ def test_preview_commands_retain_lower_strip_and_accent_rule():
     for theme_name in THEME_NAMES:
         command = command_for(theme_name)
         colors = preview.read_palette(REPOSITORY / "themes" / theme_name)
-        option_values = list(zip(command, command[1:]))
-        draw_commands = draw_arguments(command)
+        lower_strip = f"rectangle 0,{strip_top} {preview.WIDTH},{preview.HEIGHT}"
+        accent_rule = f"rectangle 0,{strip_top} {preview.WIDTH},{strip_top + 4}"
+        lower_strip_index = command.index(lower_strip)
+        accent_rule_index = command.index(accent_rule)
 
-        assert ("-fill", f"{colors['background']}E8") in option_values
-        assert f"rectangle 0,{strip_top} {preview.WIDTH},{preview.HEIGHT}" in draw_commands
-        assert ("-fill", colors["accent"]) in option_values
-        assert f"rectangle 0,{strip_top} {preview.WIDTH},{strip_top + 4}" in draw_commands
+        assert command[lower_strip_index - 5:lower_strip_index + 1] == [
+            "-fill", f"{colors['background']}E8", "-stroke", "none", "-draw", lower_strip,
+        ]
+        assert command[accent_rule_index - 3:accent_rule_index + 1] == [
+            "-fill", colors["accent"], "-draw", accent_rule,
+        ]
 
 
 def test_preview_commands_draw_each_selected_swatch_once():
@@ -69,6 +76,18 @@ def test_preview_commands_draw_each_selected_swatch_once():
 
         assert [color for color, draw in swatch_draws] == selected_swatches(theme_dir)
         assert len(swatch_draws) == len(selected_swatches(theme_dir))
+
+
+def test_missing_palette_skips_preview():
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        theme_dir = pathlib.Path(temporary_directory)
+        message = io.StringIO()
+
+        assert preview.read_palette(theme_dir) == {}
+        assert preview.preview_command(theme_dir) is None
+        with contextlib.redirect_stderr(message):
+            assert not preview.build(theme_dir, "empty")
+        assert message.getvalue() == "empty: no colors.toml, skipping\n"
 
 
 if __name__ == "__main__":
