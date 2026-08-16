@@ -1,0 +1,22 @@
+# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+# override replaces the whole section, so every key the generated one sets is
+# repeated here even where the value is unchanged.
+
+[launcher]
+background                = "#181716"
+background-alpha          = 0.94
+text                      = "#ede4c8"
+# Borderless. The generated launcher frames the card in the Hyprland active-border
+# colour; this rice drops that frame and lets the shadow do the separating.
+border                    = "#181716"
+border-alpha              = 0.0
+scrim                     = "#181716"
+scrim-alpha               = 0.5
+# The walker build marked the selected row with an accent bar on its leading edge.
+# The launcher section has no per-side border width, so the accent tint and accent
+# text carry the selection on their own.
+selected-background       = "#e5c125"
+selected-background-alpha = 0.10
+selected-text             = "#e5c125"
+selected-border           = "#e5c125"
+selected-border-alpha     = 0.0

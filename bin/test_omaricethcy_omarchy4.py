@@ -78,6 +78,17 @@ def test_semantic_names_agree_with_the_ansi_slots():
                 f"{theme_dir.name}: {name} {colors[name]} but {slot} {colors[slot]}"
 
 
+def test_terminal_roles_are_distinct():
+    """Terminal roles must remain individually recognizable across shipped themes."""
+    roles = ("red", "green", "yellow", "blue", "magenta", "cyan")
+    for theme_dir in THEMES:
+        colors = migration.parse_colors(theme_dir / "colors.toml")
+        role_colors = [colors[role] for role in roles]
+        assert len(set(role_colors)) == len(role_colors), theme_dir.name
+        for role in ("blue", "magenta", "cyan"):
+            assert colors[role] not in (colors["orange"], colors["yellow"]), \
+                f"{theme_dir.name}: {role} duplicates orange or yellow"
+
 def test_mix_matches_omarchys_rounding():
     """Values written here have to equal the ones Omarchy would derive, or a theme
     changes shade the moment upstream stops shipping the key."""

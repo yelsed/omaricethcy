@@ -123,11 +123,10 @@ def semantic_palette(colors):
     for name, slot in {**FROM_ANSI, **FROM_ANSI_OVERWRITTEN}.items():
         palette[name] = colors[slot]
 
-    # Omarchy defaults orange to yellow, which in both themes here is the accent
-    # itself — a token that resolves to the accent is no use to anything wanting a
-    # warmer step. color4 is that step in a warm ramp.
-    palette["orange"] = colors["color4"]
-    palette["brown"] = mix(palette["orange"], "#000000", 0.50)
+    # Omarchy defaults orange to yellow. Themes can state distinct warm roles, so
+    # preserve their explicit orange and brown values when present.
+    palette["orange"] = colors.get("orange", colors["color4"])
+    palette["brown"] = colors.get("brown", mix(palette["orange"], "#000000", 0.50))
     return palette
 
 
