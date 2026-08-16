@@ -145,6 +145,8 @@ themes/<name>/
 ├── colors.toml           the single source of truth
 ├── hyprland.lua          blur, shadow, rounding, gaps, animations
 ├── shell.lock.toml       the six colours the lock screen exposes
+├── shell.bar.toml        generated bar override; attention uses the accent
+├── shell.launcher.toml   generated muted container and selected-row accent frame
 ├── icons.theme           GTK icon theme name
 ├── vscode.json           VS Code theme name and extension id
 ├── neovim.lua            LazyVim colorscheme spec
@@ -154,7 +156,7 @@ themes/<name>/
 └── backgrounds/          wallpapers
 ```
 
-Nothing here overrides the bar or the launcher. Omarchy merges any `shell.<section>.toml` a theme ships into its `shell.toml`, so a `shell.bar.toml` would replace quattro's bar wholesale; the colours reach it from `colors.toml` on their own, which is all this rice wanted from it.
+Both theme-local overrides are generated. Omarchy merges any `shell.<section>.toml` a theme ships into its `shell.toml`, so each repeats the whole section: `shell.bar.toml` maps attention to the accent, and `shell.launcher.toml` adds a muted container with an accent frame around the selected row.
 
 ### Adding wallpapers
 
@@ -393,9 +395,7 @@ omarchy plymouth set-by-theme gloed   # asks for sudo, rebuilds initramfs
 
 ### The launcher and the bar
 
-Both are Omarchy 4's own, and neither is overridden here. They read `colors.toml`, so they arrive in the theme's colours without a theme-local file; the bar's layout is yours, in `~/.config/omarchy/shell.json`.
-
-Earlier rounds of this rice restyled Walker and a separately-installed quickshell bar, including deriving the bar's semantic red and green from the accent so a monochrome desktop stayed monochrome. Omarchy 4 replaced both applications and that work is gone rather than ported — see [What did not carry over](#what-did-not-carry-over).
+Omarchy 4 provides both surfaces, and the themes ship generated overrides for their colour treatment. Because a section override replaces the whole generated section, the bar and launcher files repeat every supported key: the bar makes attention the accent, while the launcher has a muted container and accent-framed selected row. The bar's layout is still yours, in `~/.config/omarchy/shell.json`; there is no launcher label-decoration key to override.
 
 ### Theme previews
 
@@ -467,7 +467,7 @@ Omarchy 4 rewrote three things this rice was built on. It now targets 4 only; th
 
 What that cost, concretely: the nine-label hyprlock lock screen is gone — quattro's lock is a Quickshell plugin drawing the blurred wallpaper and one password box, and `shell.lock.toml` exposes six colours and no layout. The banner survives where it always lived, on the boot splash and the login screen, which quattro does not touch.
 
-What it saved: the bar, the launcher and the wallpaper picker are quattro's own, so `shell.bar.toml`, `shell.launcher.toml`, `walker.css` and `waybar.css` are gone rather than ported.
+What it saved: the bar, launcher and wallpaper picker remain quattro's own, while `walker.css` and `waybar.css` are gone rather than ported. Generated `shell.bar.toml` and `shell.launcher.toml` retain the restrained theme-local colour treatment without bringing back either former application.
 
 `colors.toml` still holds both palettes in one file — Omarchy 4 prefers the semantic names and falls back to the ANSI half only for what a theme leaves out. Both halves are written by `bin/omaricethcy-omarchy4`, which reads a theme's existing palette rather than a seed colour, so hand-authored `gloed` migrates as faithfully as generated `goud`:
 
@@ -533,7 +533,7 @@ The Hyprland half of that layer now lives here, in `config/hypr/*.lua`, and `ins
 Everything else in that layer is a rebuild rather than a migration:
 
 - **The lock screen.** The nine hyprlock labels and their typed ASCII banner are gone. Omarchy 4's lock is a Quickshell plugin drawing the blurred wallpaper and one centred password box; `shell.lock.toml` sets six colours and nothing else, so there is no per-row label mechanism to port to. The banner still opens the machine — the boot splash and the login screen are untouched by Omarchy 4 and draw it from `unlock.png`.
-- **The bar and the launcher.** Both are Omarchy 4's own now. `shell.bar.toml` and `shell.launcher.toml` were deleted rather than ported: Omarchy merges any `shell.<section>.toml` a theme ships, so keeping them would have replaced the new bar wholesale to restate a decision — that attention is the accent rather than a second hue — which `colors.toml` already carries on its own.
+- **The bar and the launcher.** Both are Omarchy 4's own now, with generated `shell.bar.toml` and `shell.launcher.toml` section overrides. The bar uses the accent for attention; the launcher has a muted container and an accent frame around the selected row. Its schema exposes colour and alpha fields, not label decoration.
 - **`omarchy-launch-walker`.** The command no longer exists, so its shim went with it.
 
 The per-monitor wallpaper tooling drives `swaybg` directly and never went through Omarchy, but Omarchy 4 retires that package and renders the background inside the shell, from `~/.local/state/omarchy/current/background`, animating the change on a theme switch. It is behind `./install.sh --per-monitor-wallpapers` and unreconciled with any of that; see [Per-monitor wallpapers](#per-monitor-wallpapers).
@@ -547,7 +547,7 @@ The per-monitor wallpaper tooling drives `swaybg` directly and never went throug
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
 - **Preview images.** `preview-unlock.png` is still missing, so the themes do not appear in Omarchy's unlocks menu — that menu lists only themes that ship one.
-- **The shell layer on Omarchy 4.** The themes and the Hyprland configuration are ready; the shell surfaces are not. The lock screen has no `shell.lock.toml`, and the bar and launcher have only their colour overrides — see [What Omarchy 4 does not carry over](#what-omarchy-4-does-not-carry-over).
+- **The shell layer on Omarchy 4.** The themes and the Hyprland configuration are ready; the lock screen has no `shell.lock.toml`, while the bar and launcher use the generated overrides described in [The launcher and the bar](#the-launcher-and-the-bar).
 - **Per-monitor wallpapers on Omarchy 4.** `swaybg` is retired there and the background moves inside the shell, so the split needs `swaybg` reinstalled, `omarchy.background` disabled, and the watch pointed at `~/.local/state/omarchy/current/background`.
 - **Middle-click autoscroll.** The `hypr-autoscroll` plugin and its binding are commented out in `config/hypr/`. hyprpm builds against a specific Hyprland commit and refuses to load when the two drift; until `hyprpm reload` succeeds, an unloaded plugin's dispatcher is a config error on every reload.
 

@@ -268,9 +268,7 @@ def shell_bar_toml(palette):
 background       = "{palette['background']}"
 background-alpha = 1.0
 text             = "{palette['foreground']}"
-# The generated bar colours attention modules (recording, alerts, updates) with
-# `red`, which puts a second hue on a bar that otherwise carries none. Attention
-# is the accent here, the same decision the quickshell bar made.
+# Attention modules use `accent`, matching the `palette['accent']` output below.
 active           = "{palette['accent']}"
 scale-with-font  = true
 size-horizontal  = 26
@@ -287,20 +285,17 @@ def shell_launcher_toml(palette):
 background                = "{palette['background']}"
 background-alpha          = 0.94
 text                      = "{palette['foreground']}"
-# Borderless. The generated launcher frames the card in the Hyprland active-border
-# colour; this rice drops that frame and lets the shadow do the separating.
-border                    = "{palette['background']}"
-border-alpha              = 0.0
+# The muted border gives the launcher a visible, restrained container.
+border                    = "{palette['muted']}"
+border-alpha              = 0.80
 scrim                     = "{palette['background']}"
 scrim-alpha               = 0.5
-# The walker build marked the selected row with an accent bar on its leading edge.
-# The launcher section has no per-side border width, so the accent tint and accent
-# text carry the selection on their own.
+# The selected row uses an accent tint and complete accent frame.
 selected-background       = "{palette['accent']}"
-selected-background-alpha = 0.10
+selected-background-alpha = 0.16
 selected-text             = "{palette['accent']}"
 selected-border           = "{palette['accent']}"
-selected-border-alpha     = 0.0
+selected-border-alpha     = 1.0
 """
 
 

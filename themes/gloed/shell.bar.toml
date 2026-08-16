@@ -6,9 +6,7 @@
 background       = "#181716"
 background-alpha = 1.0
 text             = "#f0e3d5"
-# The generated bar colours attention modules (recording, alerts, updates) with
-# `red`, which puts a second hue on a bar that otherwise carries none. Attention
-# is the accent here, the same decision the quickshell bar made.
+# Attention modules use `accent`, matching the `palette['accent']` output below.
 active           = "#ff8c00"
 scale-with-font  = true
 size-horizontal  = 26

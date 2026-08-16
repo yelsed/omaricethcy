@@ -6,17 +6,14 @@
 background                = "#181716"
 background-alpha          = 0.94
 text                      = "#ede4c8"
-# Borderless. The generated launcher frames the card in the Hyprland active-border
-# colour; this rice drops that frame and lets the shadow do the separating.
-border                    = "#181716"
-border-alpha              = 0.0
+# The muted border gives the launcher a visible, restrained container.
+border                    = "#4a4541"
+border-alpha              = 0.80
 scrim                     = "#181716"
 scrim-alpha               = 0.5
-# The walker build marked the selected row with an accent bar on its leading edge.
-# The launcher section has no per-side border width, so the accent tint and accent
-# text carry the selection on their own.
+# The selected row uses an accent tint and complete accent frame.
 selected-background       = "#e5c125"
-selected-background-alpha = 0.10
+selected-background-alpha = 0.16
 selected-text             = "#e5c125"
 selected-border           = "#e5c125"
-selected-border-alpha     = 0.0
+selected-border-alpha     = 1.0

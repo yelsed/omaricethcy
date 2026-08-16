@@ -52,6 +52,24 @@ def test_shipped_themes_are_in_sync_with_the_tool():
             assert on_disk == produced, f"{theme_dir.name}/{filename} is stale, rerun bin/omaricethcy-omarchy4"
 
 
+def test_launcher_has_visible_container_and_selection_frame():
+    """Each shipped theme gives the launcher and its selected row a restrained frame."""
+    for theme_dir in THEMES:
+        colors = migration.parse_colors(theme_dir / "colors.toml")
+        palette = migration.semantic_palette(colors)
+        launcher = migration.shell_launcher_toml(palette)
+        expected_lines = (
+            f'border                    = "{palette["muted"]}"',
+            "border-alpha              = 0.80",
+            f'selected-background       = "{palette["accent"]}"',
+            "selected-background-alpha = 0.16",
+            f'selected-text             = "{palette["accent"]}"',
+            f'selected-border           = "{palette["accent"]}"',
+            "selected-border-alpha     = 1.0",
+        )
+        for expected_line in expected_lines:
+            assert expected_line in launcher, f"{theme_dir.name}: missing {expected_line}"
+
 def test_omarchy_3_tokens_all_survive():
     for theme_dir in THEMES:
         values = parse_as_omarchy_3((theme_dir / "colors.toml").read_text())
