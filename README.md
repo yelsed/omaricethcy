@@ -213,8 +213,8 @@ Each theme carries its own set, split by dominant hue so neither theme shows the
 
 | Filename | Theme | Creator | Source | License | Verified dimensions |
 |---|---|---|---|---|---|
-| `zwarte-topografie.jpg` | goud | jonakoh _ | https://unsplash.com/photos/abstract-dark-landscape-with-textured-mountain-peaks-HxtvH28DSVM | Unsplash License | 3840×2160 |
-| `zwarte-zuilen.jpg` | gloed | Andrew Kliatskyi | https://unsplash.com/photos/dark-textured-surface-with-many-small-raised-elements-Jnad8DyoQzo | Unsplash License | 3840×2160 |
+| `00-zwarte-topografie.jpg` | goud | jonakoh _ | https://unsplash.com/photos/abstract-dark-landscape-with-textured-mountain-peaks-HxtvH28DSVM | Unsplash License | 3840×2160 |
+| `00-zwarte-zuilen.jpg` | gloed | Andrew Kliatskyi | https://unsplash.com/photos/dark-textured-surface-with-many-small-raised-elements-Jnad8DyoQzo | Unsplash License | 3840×2160 |
 
 ### Per-monitor wallpapers
 

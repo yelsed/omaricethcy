@@ -38,8 +38,8 @@ def read_palette(theme_dir):
 
 
 def pick_backdrop(theme_dir):
-    """Prefer a landscape variant; the previews are landscape."""
-    for directory in ("landscape", "backgrounds"):
+    """Prefer the picker-selected background over generated landscape variants."""
+    for directory in ("backgrounds", "landscape"):
         candidates = sorted(
             path for path in (theme_dir / directory).glob("*")
             if path.suffix.lower() in (".jpg", ".jpeg", ".png")

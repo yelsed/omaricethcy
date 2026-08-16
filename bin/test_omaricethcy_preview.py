@@ -78,6 +78,19 @@ def test_preview_commands_draw_each_selected_swatch_once():
         assert len(swatch_draws) == len(selected_swatches(theme_dir))
 
 
+def test_pick_backdrop_prefers_background_candidate_over_landscape_candidate():
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        theme_dir = pathlib.Path(temporary_directory)
+        background = theme_dir / "backgrounds" / "00-black-led.jpg"
+        landscape = theme_dir / "landscape" / "bright-landscape.jpg"
+        background.parent.mkdir()
+        landscape.parent.mkdir()
+        background.touch()
+        landscape.touch()
+
+        assert preview.pick_backdrop(theme_dir) == background
+
+
 def test_missing_palette_skips_preview():
     with tempfile.TemporaryDirectory() as temporary_directory:
         theme_dir = pathlib.Path(temporary_directory)
