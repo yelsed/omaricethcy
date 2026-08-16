@@ -15,7 +15,7 @@ Documentation=https://github.com/yelsed/omaricethcy
 # Theme switches also touch this directory, which fires the unit a few extra
 # times. `omaricethcy-bg apply` exits early when swaybg is already correct, so
 # those are no-ops.
-PathChanged=%h/.config/omarchy/current
+PathChanged=%h/.local/state/omarchy/current
 Unit=omaricethcy-bg.service
 
 [Install]

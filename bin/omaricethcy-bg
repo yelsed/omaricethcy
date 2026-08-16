@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-CURRENT_ROOT="$HOME/.config/omarchy/current"
+CURRENT_ROOT="$HOME/.local/state/omarchy/current"
 THEME_DIR="$CURRENT_ROOT/theme"
 BACKGROUNDS_DIR="$THEME_DIR/backgrounds"
 CURRENT_LINK="$CURRENT_ROOT/background"

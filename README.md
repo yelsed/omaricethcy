@@ -23,16 +23,19 @@ One command. Every step is idempotent, and anything outside this repository is b
 |---|---|
 | Themes | Symlinks each `themes/<name>/` into `~/.config/omarchy/themes/`. Symlinks, not copies, so edits here are live on the next `omarchy theme set`. Both `omarchy theme list` and `omarchy-theme-set` handle symlinked theme directories natively. |
 | Tools | Links `bin/omaricethcy-*` into `~/.local/bin` |
-| Wallpaper hook | Installs `hooks/60-omaricethcy-bg.sh` into `~/.config/omarchy/hooks/theme-set.d/` so the per-monitor split survives a theme change, and binds `SUPER SHIFT W` to the cycler |
 | Cursors | Builds a cursor theme in each theme's accent and installs `hooks/70-omaricethcy-cursor.sh` so the pointer follows a theme change |
 | Boot splash | Installs `hooks/80-omaricethcy-unlock.sh`, which syncs the Plymouth and SDDM logo with the active theme. Does not run the sync itself — it needs sudo and rebuilds the initramfs. |
 | Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active. `omaricethcy-shader` turns it off and on. |
 | Ghostty | Adds the `config-file` line for the theme palette and points `custom-shader` at the theme's shader. Warns if a hardcoded `theme =` line is still overriding the rice. |
 | Default terminal | Puts Ghostty first in `~/.config/xdg-terminals.list` and registers `x-scheme-handler/terminal` |
-| Waybar | Turns off Omarchy's Waybar, persistently — the rice uses the quickshell bar, and Waybar would sit on top of it |
+| Hyprland | Links `config/hypr/*.lua` over Omarchy's stock files — monitors, input, bindings, look and feel, autostart |
 | Apply | `omarchy theme set <name>` |
 
 `./install.sh --themes-only` links the themes and touches nothing else.
+
+This needs Omarchy 4; `install.sh` stops if it does not find `~/.config/hypr/hyprland.lua`. Omarchy 4 reads Lua where 3 read hyprlang, keeps the active theme somewhere else, and has no hyprlock, Waybar or Walker left to theme — so the rice targets one of them rather than straddling both.
+
+Wallpapers and the bar are Omarchy's own. The bar is quattro's, in the theme's colours, with the layout from your `~/.config/omarchy/shell.json`; wallpapers come from the theme's `backgrounds/` through Omarchy's own picker. `./install.sh --per-monitor-wallpapers` adds the older split back — see [Per-monitor wallpapers](#per-monitor-wallpapers).
 
 ## Any accent, whole desktop
 
@@ -61,7 +64,7 @@ Shared by both themes. This is where every background and surface comes from. It
 | Token | Hex | Role | Contrast on `#181716` |
 |---|---|---|---|
 | `bg` | `#181716` | Main background | — |
-| `surface` | `#211f1d` | Panels, waybar, walker, mako | — |
+| `surface` | `#211f1d` | Panels, bar, launcher, notifications | — |
 | `overlay` | `#2d2a27` | Dividers, inactive borders, code blocks | — |
 | `muted` | `#4a4541` | Disabled, bright black | — |
 | `subtle` | `#837c74` | Comments, secondary text | 4.35:1 |
@@ -139,21 +142,19 @@ A theme-local file always wins over its template. So these themes ship `colors.t
 
 ```
 themes/<name>/
-├── colors.toml           the single source of truth, in both palette schemas
-├── hyprland.conf         blur, shadow, rounding, gaps, animations
-├── hyprland.lua          the same, in the Lua config Omarchy 4 reads instead
-├── hyprlock.conf         lock screen colour variables, incl. ones Omarchy has no template for
-├── walker.css            launcher rounding and motion — the template is colours only
-├── waybar.css            adds accent and alert, so style.css need not hardcode hexes
-├── shell.bar.toml        Omarchy 4's bar, which replaces waybar
-├── shell.launcher.toml   Omarchy 4's launcher, which replaces walker
+├── colors.toml           the single source of truth
+├── hyprland.lua          blur, shadow, rounding, gaps, animations
+├── shell.lock.toml       the six colours the lock screen exposes
 ├── icons.theme           GTK icon theme name
 ├── vscode.json           VS Code theme name and extension id
 ├── neovim.lua            LazyVim colorscheme spec
+├── unlock.png            the banner, for the boot splash and the login screen
+├── unlock.widths         where each of its letters ends, for the login screen's reveal
+├── ascii/                the same banner as text, for fastfetch and the shell greeting
 └── backgrounds/          wallpapers
 ```
 
-The `.lua` and `shell.*.toml` files are inert on Omarchy 3 and the `.conf` and `.css` files are inert on Omarchy 4 — see [Ready for Omarchy 4](#ready-for-omarchy-4).
+Nothing here overrides the bar or the launcher. Omarchy merges any `shell.<section>.toml` a theme ships into its `shell.toml`, so a `shell.bar.toml` would replace quattro's bar wholesale; the colours reach it from `colors.toml` on their own, which is all this rice wanted from it.
 
 ### Adding wallpapers
 
@@ -192,7 +193,7 @@ Symlinks rather than copies because Omarchy's `cp -r` of the theme preserves the
 
 ### Wallpapers
 
-Each theme carries its own set, split by dominant hue so neither theme shows the other's colour. Cycle with `omarchy theme bg next`, or pick one from the background menu (`SUPER CTRL SPACE`).
+Each theme carries its own set, split by dominant hue so neither theme shows the other's colour. Cycle with `omarchy theme bg next`, or pick one from the background menu (`SUPER CTRL SPACE`). Omarchy reads them from the theme's `backgrounds/`, which here is a directory of symlinks into `wallpapers/<shape>/` — its lookup follows symlinks, so the shape split costs the picker nothing.
 
 | goud | gloed |
 |---|---|
@@ -205,6 +206,14 @@ Each theme carries its own set, split by dominant hue so neither theme shows the
 | `batman-silhouet` | `wolkenzee` golden sea of clouds |
 | `gele-auto` | `gloed-verloop`, `gloed-kern` generated gradients |
 | `rubberplant` | |
+
+### Per-monitor wallpapers
+
+Everything from here to the end of this section is **off unless you pass `./install.sh --per-monitor-wallpapers`**, and it has not been reconciled with Omarchy 4.
+
+It drives `swaybg` directly and never went through Omarchy, but Omarchy 4 retires that package and renders the background inside its own shell, from `~/.local/state/omarchy/current/background`, animating the change on a theme switch. The paths below have been moved to that location; nothing else has been checked against it. Making it work again likely means reinstalling `swaybg`, disabling the `omarchy.background` plugin in `~/.config/omarchy/shell.json`, and giving up the transition animation.
+
+The default is Omarchy's: one image across every output, chosen from the theme's `backgrounds/` by Omarchy's own picker.
 
 #### One wallpaper, two screen shapes
 
@@ -256,7 +265,7 @@ Three approaches that were tried and discarded:
 | Mirrored edges | Produces an obvious axis of symmetry; on anything with a subject it reads as a mirrored monster. |
 
 ```bash
-omaricethcy-bg next          # or SUPER SHIFT W
+omaricethcy-bg next          # SUPER SHIFT W, once you uncomment it in bindings.lua
 omaricethcy-bg set zandloper
 omaricethcy-bg list
 omaricethcy-companions       # rebuild companions, e.g. after adding photos
@@ -287,7 +296,7 @@ Everything that changes a wallpaper in Omarchy ends by pointing one image at eve
 The backstop is a systemd user path unit that watches the background symlink and re-applies whenever it changes. It does not care which process changed it or what that process's `PATH` was, so it covers every route including ones that never touch the shims:
 
 ```
-systemd/omaricethcy-bg.path      watches ~/.config/omarchy/current
+systemd/omaricethcy-bg.path      watches ~/.local/state/omarchy/current
 systemd/omaricethcy-bg.service   runs `omaricethcy-bg apply`
 ```
 
@@ -309,11 +318,11 @@ On top of that, shims in `~/.local/bin` intercept the two Omarchy commands direc
 
 Each shim runs the real Omarchy command then re-applies, so deleting them restores stock behaviour exactly.
 
-The shims depend on `~/.local/bin` preceding `~/.local/share/omarchy/bin`, which in the graphical session it did not: `~/.config/uwsm/env` prepends Omarchy's bin, putting it ahead. `install.sh` does not touch that file — fixing it is a one-line addition of `export PATH=$HOME/.local/bin:$PATH` after Omarchy's line. Without it the shims are simply skipped and the path unit does the work instead.
+The shims depend on `~/.local/bin` preceding Omarchy's own bin, which in the graphical session it did not: `~/.config/uwsm/env` prepends Omarchy's bin, putting it ahead. `install.sh` does not touch that file — fixing it is a one-line addition of `export PATH=$HOME/.local/bin:$PATH` after Omarchy's line. Without it the shims are simply skipped and the path unit does the work instead.
 
 Selecting a wallpaper from outside the current theme has no companion to pair with, so `omaricethcy-bg apply` leaves Omarchy's single-image result alone rather than failing.
 
-`~/.config/omarchy/current/background` keeps pointing at the sharp original, because other things follow that symlink — the quickshell bar among them.
+`~/.local/state/omarchy/current/background` keeps pointing at the sharp original, because other things follow that symlink — the shell's own bar among them.
 
 ### ASCII art
 
@@ -382,27 +391,11 @@ omarchy plymouth set-by-theme gloed   # asks for sudo, rebuilds initramfs
 
 `omarchy-refresh-sddm` restores the stock login theme and undoes this; the next theme switch puts it back.
 
-### The launcher
+### The launcher and the bar
 
-Omarchy's walker `style.css` is imported *after* the theme's `walker.css` and sets `.box-wrapper { border: 2px solid @border }`, which wins on source order — that is where the glass frame comes from, and `border: none` from the theme cannot remove it. So `@border` is set to the panel colour and the frame paints itself invisible, and the theme's own rules are qualified with `window` to outrank style.css's bare class selectors.
+Both are Omarchy 4's own, and neither is overridden here. They read `colors.toml`, so they arrive in the theme's colours without a theme-local file; the bar's layout is yours, in `~/.config/omarchy/shell.json`.
 
-The selection is marked by a 4px accent bar on its leading edge rather than by outlining the whole panel.
-
-### The bar
-
-The quickshell bar reads `colors.toml`, so it inherited the terminal's semantic red and green — off-theme against a monochrome rice. In `~/.config/quickshell/bar/Theme.qml` the two semantic slots and a hardcoded `green` literal now derive from `accentHint` instead:
-
-```qml
-property color color01: Qt.darker(accentHint, 1.45)    // was terminal red
-property color color02: Qt.lighter(accentHint, 1.12)   // was terminal green
-property color green:   Qt.darker(accentHint, 1.2)     // was #8a9a73
-```
-
-`accentHint` previously defaulted to `color01`, so deriving `color01` from it would have been circular; its default is a literal now. `Palette.js` no longer applies `color01`/`color02` from `colors.toml`, which is what lets the declarations above survive.
-
-The terminal keeps its real red and green — `git diff` still reads correctly. Only the bar is monochrome.
-
-Both changes live in your quickshell config rather than in this repository, and apply to every Omarchy theme, not just these two. **The bar does not hot-reload**; restart it with `qs-barctl stop-wait && qs-barctl start`.
+Earlier rounds of this rice restyled Walker and a separately-installed quickshell bar, including deriving the bar's semantic red and green from the accent so a monochrome desktop stayed monochrome. Omarchy 4 replaced both applications and that work is gone rather than ported — see [What did not carry over](#what-did-not-carry-over).
 
 ### Theme previews
 
@@ -418,12 +411,10 @@ Why each override exists, rather than taking the generated version:
 
 | File | Generated version gives | Why it is overridden |
 |---|---|---|
-| `hyprland.conf` | active border colour, nothing else | No blur, shadow, rounding, gaps or animations |
-| `hyprlock.conf` | five colour variables | Not enough for a real lock screen layout |
-| `walker.css` | six colour variables | Omarchy's walker `style.css` sets **no** `border-radius` anywhere, so nothing is rounded |
-| `waybar.css` | foreground and background | No accent or alert, forcing hardcoded hexes in `style.css` |
+| `hyprland.lua` | active border colour, nothing else | No blur, shadow, rounding, gaps or animations |
+| `shell.lock.toml` | Omarchy's own lock colours | The password box would not be in the theme's accent |
 
-Everything else is produced by Omarchy from `colors.toml` and is deliberately **not** committed: `alacritty.toml`, `ghostty.conf`, `kitty.conf`, `foot.ini`, `mako.ini`, `swayosd.css`, `btop.theme`, `obsidian.css`, `helix.toml`, `chromium.theme`, `keyboard.rgb`, `gum.env.conf`.
+Everything else is produced by Omarchy from `colors.toml` and is deliberately **not** committed: `alacritty.toml`, `ghostty.conf`, `kitty.conf`, `foot.ini`, `btop.theme`, `obsidian.css`, `helix.toml`, `chromium.theme`, `keyboard.rgb`, `gum.env.conf`, and the rest of `shell.toml`.
 
 ### The shader
 
@@ -458,23 +449,27 @@ Open windows change immediately. Ghostty reloads its configuration only from ins
 
 Three files live in `~/.config/` rather than in a theme, because they are layout rather than colour, and they read the theme's variables so they follow whichever theme is active:
 
-- `~/.config/hypr/hyprlock.conf` — lock screen layout. Sources the theme's `hyprlock.conf` for colours.
-- `~/.config/waybar/style.css` — bar layout. Imports the theme's `waybar.css`; uses `@alert` rather than a hex.
 - `~/.config/ghostty/config` — must contain `config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"` or Ghostty ignores the theme entirely, and `custom-shader = "~/.config/omarchy/current/theme/shader.glsl"` so the shader switches with the theme.
 
 Not yet shipped, and optional: `preview-unlock.png` (the unlocks menu thumbnail, 1920×1080).
 
-## Ready for Omarchy 4
+## On Omarchy 4
 
-Omarchy 4 rewrites three things this rice is built on. The themes carry both versions of each, so a theme directory works on Omarchy 3 today and on Omarchy 4 whenever the machine gets there. Nothing has to be switched over on upgrade day.
+Omarchy 4 rewrote three things this rice was built on. It now targets 4 only; the Omarchy 3 layer lives on the branch before `feat/omarchy-quattro`.
 
 | | Omarchy 3 | Omarchy 4 |
 |---|---|---|
 | Palette | `color0`…`color15` | semantic names — `red`, `lighter_background`, `bright_foreground` |
 | Hyprland | hyprlang, `hyprland.conf` | Hyprland's own Lua config, `hyprland.lua` |
 | Desktop surfaces | waybar + walker + mako + swayosd + hyprlock | one built-in shell, configured by `shell.toml` |
+| Active theme | `~/.config/omarchy/current/theme` | `~/.local/state/omarchy/current/theme` |
+| Background | one symlink per output, via swaybg | one symlink, rendered and animated by the shell |
 
-`colors.toml` holds both palettes in one file. Omarchy 3 reads the ANSI half and never sees the semantic names; Omarchy 4 prefers the semantic names and falls back to the ANSI half only for what a theme leaves out. Both halves are written by `bin/omaricethcy-omarchy4`, which reads a theme's existing palette rather than a seed colour, so hand-authored `gloed` migrates as faithfully as generated `goud`:
+What that cost, concretely: the nine-label hyprlock lock screen is gone — quattro's lock is a Quickshell plugin drawing the blurred wallpaper and one password box, and `shell.lock.toml` exposes six colours and no layout. The banner survives where it always lived, on the boot splash and the login screen, which quattro does not touch.
+
+What it saved: the bar, the launcher and the wallpaper picker are quattro's own, so `shell.bar.toml`, `shell.launcher.toml`, `walker.css` and `waybar.css` are gone rather than ported.
+
+`colors.toml` still holds both palettes in one file — Omarchy 4 prefers the semantic names and falls back to the ANSI half only for what a theme leaves out. Both halves are written by `bin/omaricethcy-omarchy4`, which reads a theme's existing palette rather than a seed colour, so hand-authored `gloed` migrates as faithfully as generated `goud`:
 
 ```bash
 bin/omaricethcy-omarchy4            # every theme
@@ -527,22 +522,21 @@ Verified on this machine — against Omarchy 3.8.4, against Omarchy 4's own `oma
 - `hyprctl configerrors` stays clean.
 - `python3 bin/test_omaricethcy_omarchy4.py` — 6 tests, including that the committed files match what the tool produces, so a stale theme fails the suite rather than drifting quietly.
 
-What remains untested is the only part that genuinely needs Omarchy 4: whether its shell *renders* these files the way the themes intend. Parsing is not appearance. Expect to nudge alphas and sizes on the day.
+That was all written before the machine was on Omarchy 4. It is now, and the shell does render these files as intended — see [What did not carry over](#what-did-not-carry-over) for the parts that were dropped rather than nudged.
 
-### What Omarchy 4 does not carry over
+### What did not carry over
 
 Omarchy 4 deletes waybar, walker, mako, swayosd, hyprlock and swaybg, which is most of the layer this rice hand-built in `~/.config/`.
 
-The Hyprland half of that layer now lives here, in `config/hypr/*.lua`, and `install.sh` links it on any machine that has an `~/.config/hypr/hyprland.lua` — that file is what tells Omarchy 4 apart from Omarchy 3, whose `.conf` tree it never sources. It is deliberately small. Omarchy 4 already binds the terminal, the browser, the web apps, 1Password, Obsidian, Signal, Spotify and lazydocker to the same keys this rice used to restate by hand, so only what genuinely differs is kept: the two monitors, the input tuning and its per-terminal scroll factors, `SUPER + SHIFT + T` for btop, `SUPER + SHIFT + W` taken back from Omawrite for the wallpaper cycler, and Blender's opacity rules.
+The Hyprland half of that layer now lives here, in `config/hypr/*.lua`, and `install.sh` links it on any machine that has an `~/.config/hypr/hyprland.lua` — that file is what tells Omarchy 4 apart from Omarchy 3, whose `.conf` tree it never sources. It is deliberately small. Omarchy 4 already binds the terminal, the browser, the web apps, 1Password, Obsidian, Signal, Spotify and lazydocker to the same keys this rice used to restate by hand, so only what genuinely differs is kept: the two monitors, the input tuning and its per-terminal scroll factors, `SUPER + SHIFT + T` for btop, and Blender's opacity rules. `SUPER + SHIFT + W` used to be taken back from Omawrite for the wallpaper cycler; it is commented out with the rest of that machinery.
 
 Everything else in that layer is a rebuild rather than a migration:
 
-- The nine-label hyprlock lock screen and its typed ASCII banner. Omarchy 4's lock is the built-in shell's, configured by `[lock]` in `shell.toml`, which has no per-row label mechanism. There is no `shell.lock.toml` here yet, so the lock screen falls back to Omarchy's own colours.
-- The quickshell bar. Omarchy 4 ships its own; `shell.bar.toml` carries the one decision worth keeping, which is that attention is the accent rather than a second hue.
-- The borderless launcher. `shell.launcher.toml` reproduces the frameless card and accent selection; the leading-edge accent bar has no equivalent, since the launcher section has no per-side border width.
-- The `omarchy-launch-walker` and `omarchy-theme-bg-*` shims, which intercept commands that may be renamed.
+- **The lock screen.** The nine hyprlock labels and their typed ASCII banner are gone. Omarchy 4's lock is a Quickshell plugin drawing the blurred wallpaper and one centred password box; `shell.lock.toml` sets six colours and nothing else, so there is no per-row label mechanism to port to. The banner still opens the machine — the boot splash and the login screen are untouched by Omarchy 4 and draw it from `unlock.png`.
+- **The bar and the launcher.** Both are Omarchy 4's own now. `shell.bar.toml` and `shell.launcher.toml` were deleted rather than ported: Omarchy merges any `shell.<section>.toml` a theme ships, so keeping them would have replaced the new bar wholesale to restate a decision — that attention is the accent rather than a second hue — which `colors.toml` already carries on its own.
+- **`omarchy-launch-walker`.** The command no longer exists, so its shim went with it.
 
-The per-monitor wallpaper tooling does need work, contrary to what this section said before it was checked. It drives `swaybg` directly and never went through Omarchy, but Omarchy 4 retires the package and renders the background inside the shell instead, from `~/.local/state/omarchy/current/background`. Keeping the split means reinstalling `swaybg`, disabling the `omarchy.background` plugin in `shell.json`, and following the state path to its new home.
+The per-monitor wallpaper tooling drives `swaybg` directly and never went through Omarchy, but Omarchy 4 retires that package and renders the background inside the shell, from `~/.local/state/omarchy/current/background`, animating the change on a theme switch. It is behind `./install.sh --per-monitor-wallpapers` and unreconciled with any of that; see [Per-monitor wallpapers](#per-monitor-wallpapers).
 
 ## Roadmap
 
@@ -550,7 +544,6 @@ The per-monitor wallpaper tooling does need work, contrary to what this section 
 - **aether.** `~/.config/aether/theme.css` hardcodes `@define-color accent_bg_color #7aa2f7` (blue), and every override in `theme.override.css` is commented out. Aether is not in Omarchy's theme pipeline, so it needs wiring by hand or by a `theme-set` hook.
 - **fastfetch.** The logo now uses ANSI `yellow`, which is `color3` and therefore the accent, so it follows the theme with no per-theme file. The Hardware section's `keyColor` is still `green` (`color2`, the olive `#8a9d33`) — the only remaining off-ramp colour there, since `blue` and `magenta` both map into the gold ramp.
 - **Wallpaper resolution.** Every shipped photo is at most 736px wide. The blur-fill companions make the framing work on a landscape screen, but they cannot add detail that is not in the source — the sharp centre panel is still an upscale.
-- **Background menu.** Omarchy exposes no hook for its own background picker, so choosing a wallpaper there sets one image across both screens. `SUPER SHIFT W` restores the per-monitor split.
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
 - **Preview images.** `preview-unlock.png` is still missing, so the themes do not appear in Omarchy's unlocks menu — that menu lists only themes that ship one.

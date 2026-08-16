@@ -40,8 +40,15 @@ if cmp -s "$theme_dir/unlock.png" /usr/share/plymouth/themes/omarchy/logo.png &&
 fi
 
 # A theme-set hook has no terminal, and sudo needs one to prompt on. This is how
-# Omarchy runs the same command from its own unlocks menu in Walker.
+# Omarchy runs the same command from its own unlocks menu.
 command -v omarchy-launch-floating-terminal-with-presentation >/dev/null || exit 0
+
+# One sync at a time. The terminal below waits on a password and then on an
+# initramfs rebuild, so without this a run of theme switches leaves a window per
+# switch stacked on the screen, each asking for the same password. A theme
+# switched to while a sync is pending is picked up by the next switch — the
+# comparison at the top of this file is what decides, not this guard.
+pgrep -f 'omarchy-plymouth-set-by-theme' >/dev/null && exit 0
 
 # Rendered here, where nothing needs root; the terminal below only copies it.
 staged=$(mktemp --suffix=-Main.qml)
@@ -49,5 +56,10 @@ sed -e "s/#181716/$background/" \
   -e "s|/\* UNLOCK_WIDTHS \*/|$letter_ends|" \
   "$template" >"$staged"
 
-omarchy-launch-floating-terminal-with-presentation \
-  "omarchy-plymouth-set-by-theme '$theme' && sudo cp '$staged' /usr/share/sddm/themes/omarchy/Main.qml && rm -f '$staged'"
+# Detached, because omarchy-theme-set runs its hooks synchronously and this one
+# waits on a password and then on an initramfs rebuild. Left in the foreground it
+# holds up the whole theme switch — the wallpaper, the bar and the terminals stay
+# on the old theme until someone notices the prompt.
+setsid --fork omarchy-launch-floating-terminal-with-presentation \
+  "omarchy-plymouth-set-by-theme '$theme' && sudo cp '$staged' /usr/share/sddm/themes/omarchy/Main.qml && rm -f '$staged'" \
+  >/dev/null 2>&1

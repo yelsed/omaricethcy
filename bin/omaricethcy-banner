@@ -23,7 +23,7 @@ case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
   *) export LC_ALL=C.UTF-8 ;;
 esac
 
-THEME_DIR="$HOME/.config/omarchy/current/theme"
+THEME_DIR="$HOME/.local/state/omarchy/current/theme"
 LOGO="$THEME_DIR/ascii/logo.txt"
 WIDTHS="$THEME_DIR/ascii/logo.widths"
 COLORS="$THEME_DIR/colors.toml"

@@ -10,10 +10,11 @@
 -- used for it; both reach the same TUI, so this is an addition, not a move.
 o.bind("SUPER + SHIFT + T", "Activity", { tui = "btop" })
 
--- Omarchy 4 binds SUPER + SHIFT + W to Omawrite. The per-monitor wallpaper
--- cycler is the older claim on that chord here, so it takes the key back.
-hl.unbind("SUPER + SHIFT + W")
-o.bind("SUPER + SHIFT + W", "Next wallpaper", "omaricethcy-bg next")
+-- The per-monitor wallpaper cycler used to take SUPER + SHIFT + W back off
+-- Omawrite. Wallpapers are Omarchy's own now, so the chord stays Omarchy's;
+-- uncomment these two lines alongside ./install.sh --per-monitor-wallpapers.
+-- hl.unbind("SUPER + SHIFT + W")
+-- o.bind("SUPER + SHIFT + W", "Next wallpaper", "omaricethcy-bg next")
 
 -- Middle-click autoscroll, from the hypr-autoscroll plugin. Arms the mode;
 -- middle-click then drags to scroll, and pressing again hands the middle button
