@@ -1,23 +1,60 @@
-accent = "#ff8c00"
-cursor = "#ffab40"
-foreground = "#f0e3d5"
-background = "#181716"
+# Omarchy 4 reads the semantic names; Omarchy 3 reads the ANSI slots below them.
+# Both are written out and kept consistent by bin/omaricethcy-omarchy4 — do not
+# edit one half without rerunning it.
+
+# --- Omarchy 4 semantic palette ---------------------------------------------
+mode               = "dark"
+
+accent             = "#ff8c00"
+selection          = "#7c1b00"
+muted              = "#4a4541"
+
+background         = "#181716"
+dark_background    = "#121111"
+darker_background  = "#0c0c0b"
+lighter_background = "#2d2a27"
+
+foreground         = "#f0e3d5"
+dark_foreground    = "#4a4541"
+light_foreground   = "#d3c4b4"
+bright_foreground  = "#f0e3d5"
+
+red                = "#c4746e"
+yellow             = "#c4b28a"
+orange             = "#ff6a00"
+green              = "#8a9a7b"
+cyan               = "#8ea4a2"
+blue               = "#8ba4b0"
+magenta            = "#a292a3"
+brown              = "#803500"
+
+bright_red         = "#e46876"
+bright_yellow      = "#e6c384"
+bright_green       = "#87a987"
+bright_cyan        = "#7aa89f"
+bright_blue        = "#7fb4ca"
+bright_magenta     = "#938aa9"
+
+# --- Omarchy 3 palette ------------------------------------------------------
+# cursor is read by Omarchy 3 only. Omarchy 4 assigns the cursor from
+# bright_foreground unconditionally, so the accent-coloured cursor ends there.
+cursor               = "#ffab40"
 selection_foreground = "#f0e3d5"
 selection_background = "#7c1b00"
 
 color0  = "#2d2a27"
-color1  = "#ff3200"
-color2  = "#8a9d33"
-color3  = "#ffab40"
-color4  = "#ff6a00"
-color5  = "#ff8c00"
-color6  = "#d63100"
+color1  = "#c4746e"
+color2  = "#8a9a7b"
+color3  = "#c4b28a"
+color4  = "#8ba4b0"
+color5  = "#a292a3"
+color6  = "#8ea4a2"
 color7  = "#d3c4b4"
 color8  = "#4a4541"
-color9  = "#ff5c33"
-color10 = "#a3b845"
-color11 = "#ffc470"
-color12 = "#ff8c00"
-color13 = "#ffab40"
-color14 = "#ff6a00"
+color9  = "#e46876"
+color10 = "#87a987"
+color11 = "#e6c384"
+color12 = "#7fb4ca"
+color13 = "#938aa9"
+color14 = "#7aa89f"
 color15 = "#f0e3d5"

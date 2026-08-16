@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-CURRENT_ROOT="$HOME/.config/omarchy/current"
+CURRENT_ROOT="$HOME/.local/state/omarchy/current"
 THEME_DIR="$CURRENT_ROOT/theme"
 BACKGROUNDS_DIR="$THEME_DIR/backgrounds"
 CURRENT_LINK="$CURRENT_ROOT/background"
@@ -35,6 +35,25 @@ die() { echo "$*" >&2; exit 1; }
 
 theme_name="$(cat "$CURRENT_ROOT/theme.name" 2>/dev/null || echo unknown)"
 STATE_FILE="$STATE_DIR/$theme_name"
+THEME_STAMP="$STATE_DIR/theme-stamp"
+
+# Is a theme switch in flight?
+#
+# `omarchy theme set` ends by calling omarchy-theme-bg-next and it rewrites the
+# background symlink, so both the cycler and the symlink watcher hear from a
+# theme switch exactly as they would from the user asking for another wallpaper.
+# Neither should act on it: a theme is meant to come back showing what it was
+# showing. omarchy-theme-set rewrites theme.name on every run, including a
+# re-set of the theme already active, so its timestamp tells the two apart
+# exactly, with no timeout to guess at.
+#
+# The stamp is caught up by the actions that conclude a change — the theme-set
+# hook's `restore` among them — so the switch reads as in flight from the moment
+# the theme lands until that hook has had its say.
+theme_changed=0
+stamp_now="$(stat -c %Y "$CURRENT_ROOT/theme.name" 2>/dev/null || echo 0)"
+[[ $stamp_now != "$(cat "$THEME_STAMP" 2>/dev/null || echo 0)" ]] && theme_changed=1
+stamp_theme() { mkdir -p "$STATE_DIR"; echo "$stamp_now" >"$THEME_STAMP"; }
 
 # ── Wallpapers, and which shape each one natively is ─────────────────────────
 mapfile -t STEMS < <(
@@ -135,7 +154,10 @@ read_state
 
 # An external picker writes the symlink directly. If it points at a wallpaper
 # neither screen has selected, treat that as `set` so pickers keep working.
-if [[ $command == apply && -L $CURRENT_LINK ]]; then
+# Skipped right after a theme switch: that moves the symlink as well, and
+# adopting it would overwrite the pair this theme was showing and cycle the
+# other screen along with it.
+if [[ $command == apply && -L $CURRENT_LINK && $theme_changed -eq 0 ]]; then
   linked="$(basename "$(readlink "$CURRENT_LINK")")"; linked="${linked%.*}"
   if known_stem "$linked" &&
      [[ $linked != "${SELECTED[landscape]}" && $linked != "${SELECTED[portrait]}" ]]; then
@@ -157,7 +179,13 @@ case "$command" in
     done
     exit 0
     ;;
-  apply|restore) ;;
+  theme-changed)
+    # For the omarchy-theme-bg-next shim, which has to know whether it was
+    # called by the user or by the tail end of `omarchy theme set`.
+    exit $(( 1 - theme_changed ))
+    ;;
+  apply) ;;
+  restore) stamp_theme ;;
   set)
     target="${2:-}"; [[ -n $target ]] || die "usage: omaricethcy-bg set <stem>"
     known_stem "$target" || die "no such wallpaper: $target"
@@ -169,6 +197,7 @@ case "$command" in
     SELECTED[$other]="$(step "$other" 1 "$(resolve "$other")")"
     keep_distinct "$other"   # nudge the partner, never the pick
     write_state
+    stamp_theme
     ;;
   next|previous)
     direction=1; [[ $command == previous ]] && direction=-1
@@ -177,8 +206,9 @@ case "$command" in
     done
     keep_distinct landscape
     write_state
+    stamp_theme
     ;;
-  *) die "usage: omaricethcy-bg [apply|next|previous|set <stem>|list]" ;;
+  *) die "usage: omaricethcy-bg [apply|restore|next|previous|set <stem>|list]" ;;
 esac
 
 # ── Build one swaybg invocation covering every output ────────────────────────

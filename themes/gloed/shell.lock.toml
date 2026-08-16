@@ -1,0 +1,10 @@
+# The [lock] section of Omarchy's shell.toml. Spliced into it verbatim on every
+# theme switch, so this stays short. Six colours is the whole surface the lock
+# screen exposes; see the README for what that does and does not reach.
+
+text             = "#f0e3d5"
+placeholder      = "#f0e3d5"
+text-error       = "#ff3200"
+border           = "#ff8c00"
+border-active    = "#ff8c00"
+border-error     = "#ff3200"

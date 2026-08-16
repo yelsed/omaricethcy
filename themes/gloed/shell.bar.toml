@@ -1,0 +1,13 @@
+# Replaces the [bar] section of Omarchy 4's generated shell.toml. A section
+# override replaces the whole section, so every key the generated one sets is
+# repeated here even where the value is unchanged.
+
+[bar]
+background       = "#181716"
+background-alpha = 1.0
+text             = "#f0e3d5"
+# Attention modules use `accent`, matching the `palette['accent']` output below.
+active           = "#ff8c00"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28

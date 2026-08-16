@@ -23,7 +23,7 @@ case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
   *) export LC_ALL=C.UTF-8 ;;
 esac
 
-THEME_DIR="$HOME/.config/omarchy/current/theme"
+THEME_DIR="$HOME/.local/state/omarchy/current/theme"
 LOGO="$THEME_DIR/ascii/logo.txt"
 WIDTHS="$THEME_DIR/ascii/logo.widths"
 COLORS="$THEME_DIR/colors.toml"
@@ -100,9 +100,14 @@ if [[ -n $LOCK_ROW ]]; then
   for line in "${BANNER_ROWS[@]}"; do (( ${#line} > widest )) && widest=${#line}; done
   row="${BANNER_ROWS[$LOCK_ROW]:-}"
   visible="${row:0:${CUTS[$((shown - 1))]}}"
-  # Pad in characters, not bytes. printf's field width counts bytes and these
-  # block glyphs are three bytes each, so %-*s pads them to unequal widths.
-  printf '%s%*s\n' "$visible" "$(( widest - ${#visible} ))" ""
+  # Non-breaking spaces, and counted rather than handed to printf's field width:
+  # that width counts bytes and these block glyphs are three bytes each, so it
+  # pads the rows to unequal widths. Ordinary spaces do not survive either —
+  # hyprlock drops the trailing ones before it measures a label, so a row whose
+  # glyphs end early re-centres and slides out of line with the rest.
+  pad=""
+  for (( column = ${#visible}; column < widest; column++ )); do pad+=$'\u00a0'; done
+  printf '%s%s\n' "$visible" "$pad"
   exit 0
 fi
 

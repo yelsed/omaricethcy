@@ -1,0 +1,20 @@
+# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+# override replaces the whole section, so every key the generated one sets is
+# repeated here even where the value is unchanged.
+
+[launcher]
+background                = "#181716"
+background-alpha          = 0.94
+text                      = "#ede4c8"
+# The muted border gives the surface a visible, restrained container.
+border                    = "#4a4541"
+border-alpha              = 0.80
+scrim                     = "#181716"
+scrim-alpha               = 0.5
+# The selected row uses an accent tint and complete accent frame.
+selected-background       = "#e5c125"
+selected-background-alpha = 0.16
+selected-text             = "#e5c125"
+selected-border           = "#e5c125"
+selected-border-width     = 1
+selected-border-alpha     = 1.0

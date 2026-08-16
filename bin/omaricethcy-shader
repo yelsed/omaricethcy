@@ -1,0 +1,93 @@
+#!/bin/bash
+# Turn the Ghostty background shader on or off.
+#
+#   omaricethcy-shader          toggle
+#   omaricethcy-shader on
+#   omaricethcy-shader off
+#   omaricethcy-shader status
+#
+# The shader is one `custom-shader` line in ~/.config/ghostty/config, so the
+# switch comments it out and back in rather than moving files around: the line
+# points at the active theme, and that has to keep working when it comes back.
+#
+# Ghostty reloads its configuration only from inside a window, and has no CLI
+# action for it, so every open window is sent the reload keybind through
+# Hyprland. Windows are reloaded in place; they do not have to be focused.
+
+set -euo pipefail
+
+CONFIG="$HOME/.config/ghostty/config"
+GHOSTTY_CLASS="com.mitchellh.ghostty"
+RELOAD_KEYBIND="CTRL_SHIFT,comma"
+
+usage() {
+  cat <<'USAGE'
+Turn the Ghostty background shader on or off.
+
+  omaricethcy-shader          toggle
+  omaricethcy-shader on
+  omaricethcy-shader off
+  omaricethcy-shader status
+USAGE
+}
+
+state() {
+  if grep -qE '^[[:space:]]*custom-shader[[:space:]]*=' "$CONFIG"; then
+    echo on
+  elif grep -qE '^[[:space:]]*#[[:space:]]*custom-shader[[:space:]]*=' "$CONFIG"; then
+    echo off
+  else
+    echo missing
+  fi
+}
+
+reload() {
+  command -v hyprctl >/dev/null || return 0
+
+  local addresses
+  addresses=$(hyprctl -j clients 2>/dev/null | python3 -c '
+import json, sys
+windows = json.load(sys.stdin)
+print("\n".join(w["address"] for w in windows if w["class"] == "'"$GHOSTTY_CLASS"'"))
+' 2>/dev/null) || return 0
+
+  local address
+  for address in $addresses; do
+    hyprctl dispatch sendshortcut "$RELOAD_KEYBIND,address:$address" >/dev/null
+  done
+}
+
+if [[ ! -f $CONFIG ]]; then
+  echo "No Ghostty config at $CONFIG" >&2
+  exit 1
+fi
+
+case "${1:-toggle}" in
+  on) wanted=on ;;
+  off) wanted=off ;;
+  toggle) [[ $(state) == on ]] && wanted=off || wanted=on ;;
+  status) echo "shader $(state)"; exit 0 ;;
+  -h | --help) usage; exit 0 ;;
+  *) usage >&2; exit 1 ;;
+esac
+
+current=$(state)
+
+if [[ $current == missing ]]; then
+  echo "No custom-shader line in $CONFIG — rerun install.sh to add it" >&2
+  exit 1
+fi
+
+if [[ $current == "$wanted" ]]; then
+  echo "shader already $current"
+  exit 0
+fi
+
+if [[ $wanted == off ]]; then
+  sed -i -E 's|^([[:space:]]*)(custom-shader[[:space:]]*=)|\1# \2|' "$CONFIG"
+else
+  sed -i -E 's|^([[:space:]]*)#[[:space:]]*(custom-shader[[:space:]]*=)|\1\2|' "$CONFIG"
+fi
+
+reload
+echo "shader $wanted"
