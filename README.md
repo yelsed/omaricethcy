@@ -109,29 +109,38 @@ Steps 1–3 clear 4.5:1 against `#181716` and are safe for text (11.0:1, 8.8:1, 
 
 ### Semantic colours
 
-Only red and green stay outside the ramp, so errors and `git diff` remain readable in an otherwise monochrome interface.
+Both themes use the same Kanagawa-derived ANSI roles, keeping status and language colours legible without turning the terminal into either theme's accent ramp.
 
-| Purpose | goud | | gloed | |
-|---|---|---|---|---|
-| Error, deletion | `#d85e40` | 4.77:1 | `#ff3200` | 4.87:1 |
-| Success, addition | `#8a9d33` | 5.93:1 | `#8a9d33` | 5.93:1 |
+| Role | Normal | Bright |
+|---|---|---|
+| Red | `#c4746e` | `#e46876` |
+| Green | `#8a9a7b` | `#87a987` |
+| Yellow | `#c4b28a` | `#e6c384` |
+| Blue | `#8ba4b0` | `#7fb4ca` |
+| Magenta | `#a292a3` | `#938aa9` |
+| Cyan | `#8ea4a2` | `#7aa89f` |
 
-gloed needs no separate error colour — the hot end of its own ramp reads as red.
+Goud's brass `#e5c125` and Gloed's ember `#ff8c00` remain theme-identity accents; they are not aliases for ANSI roles.
 
 ### Terminal ANSI mapping
 
-| Slot | goud | gloed | |
+| Slot | goud | gloed | Role |
 |---|---|---|---|
 | `color0` black | `#2d2a27` | `#2d2a27` | neutral |
-| `color1` red | `#d85e40` | `#ff3200` | semantic |
-| `color2` green | `#8a9d33` | `#8a9d33` | semantic |
-| `color3` yellow | `#e5c125` | `#ffab40` | ramp 1 |
-| `color4` blue | `#aa8f19` | `#ff6a00` | ramp 3 |
-| `color5` magenta | `#c7a71f` | `#ff8c00` | ramp 2 |
-| `color6` cyan | `#8e7713` | `#d63100` | ramp 4 / 6 |
+| `color1` red | `#c4746e` | `#c4746e` | red |
+| `color2` green | `#8a9a7b` | `#8a9a7b` | green |
+| `color3` yellow | `#c4b28a` | `#c4b28a` | yellow |
+| `color4` blue | `#8ba4b0` | `#8ba4b0` | blue |
+| `color5` magenta | `#a292a3` | `#a292a3` | magenta |
+| `color6` cyan | `#8ea4a2` | `#8ea4a2` | cyan |
 | `color7` white | `#c9bc93` | `#d3c4b4` | dim foreground |
 | `color8` bright black | `#4a4541` | `#4a4541` | neutral |
-| `color9`–`color14` | brighter steps of the above | | |
+| `color9` bright red | `#e46876` | `#e46876` | bright red |
+| `color10` bright green | `#87a987` | `#87a987` | bright green |
+| `color11` bright yellow | `#e6c384` | `#e6c384` | bright yellow |
+| `color12` bright blue | `#7fb4ca` | `#7fb4ca` | bright blue |
+| `color13` bright magenta | `#938aa9` | `#938aa9` | bright magenta |
+| `color14` bright cyan | `#7aa89f` | `#7aa89f` | bright cyan |
 | `color15` bright white | `#ede4c8` | `#f0e3d5` | foreground |
 
 ## How the themes are built
@@ -240,7 +249,7 @@ The default is Omarchy's: one image across every output, chosen from the theme's
 
 #### One wallpaper, two screen shapes
 
-Every photo here is portrait. Omarchy runs `swaybg -i <one image> -m fill` across all outputs at once, which turns a portrait photo on a landscape screen into a cropped slice. swaybg does support `-o`, so `omaricethcy-bg` uses it:
+Most original source photos here are portrait; `00-zwarte-topografie.jpg` and `00-zwarte-zuilen.jpg` are the two 3840×2160 landscape, black-led additions. `landscape/` and `portrait/` contain generated companions rather than source photos. When a portrait source is used across all outputs, Omarchy runs `swaybg -i <one image> -m fill`, which turns it on a landscape screen into a cropped slice. swaybg does support `-o`, so `omaricethcy-bg` uses it:
 
 ```
 swaybg -o DP-2 -i landscape/gouden-koepel.jpg -m fill \
@@ -373,7 +382,7 @@ It writes two files per theme, because text and pixels are both needed:
 
 `unlock.png` is drawn on transparency rather than on the theme background. `omarchy-plymouth-set` hands Plymouth the background as `printf "%.3f"` floats and Plymouth truncates them back to bytes, so `#181716` is painted as `#171615` — a baked-in plate shows up as a rectangle one value off from the screen behind it.
 
-fastfetch colours it with ANSI `yellow`, which is `color3` and therefore the accent, so it follows the theme with no per-theme wiring.
+fastfetch colours it with ANSI `yellow`, `color3`'s subdued `#c4b28a` role, so it follows the terminal palette with no per-theme wiring.
 
 #### Typing it out
 
@@ -507,7 +516,7 @@ Omarchy 4 can already read an Omarchy 3 palette. Relying on that costs three thi
 - **`light_foreground`** falls back to `color7`, likewise overwritten with `foreground`. The dim foreground would stop being dim. Stated explicitly.
 - **`cursor`** is assigned from `bright_foreground` unconditionally and cannot be set by a theme at all. The accent-coloured cursor does not survive Omarchy 4. Nothing in this repository can change that; it is upstream's decision, recorded here so it is not mistaken for a bug later.
 
-One value is changed on purpose rather than repaired: `orange` defaults to `yellow`, which in both themes *is* the accent, so a token meant to give a warmer step gives back the accent. It is set to `color4` instead — `#aa8f19` in goud, `#ff6a00` in gloed.
+`orange` and `brown` are written explicitly to preserve each theme's warm secondary hues: `#aa8f19` and `#55480d` in goud, `#ff6a00` and `#803500` in gloed. Neither derives from `color4`, which is now the distinct blue ANSI role.
 
 Everything else Omarchy 4 derives is written out too, at the values its own `mix` would have produced. That is deliberate: the fallback cascade is upstream's compatibility shim and is free to change, whereas a name the theme states itself is not.
 
@@ -553,7 +562,7 @@ The Hyprland half of that layer now lives here, in `config/hypr/*.lua`, and `ins
 
 Everything else in that layer is a rebuild rather than a migration:
 
-- **The lock screen.** The nine hyprlock labels and their typed ASCII banner are gone. Omarchy 4's lock is a Quickshell plugin drawing the blurred wallpaper and one centred password box; `shell.lock.toml` sets six colours and nothing else, so there is no per-row label mechanism to port to. The banner still opens the machine — the boot splash and the login screen are untouched by Omarchy 4 and draw it from `unlock.png`.
+- **The lock screen.** The nine hyprlock labels and their typed ASCII banner are gone. Omarchy 4's lock is a Quickshell plugin drawing the blurred wallpaper and one centred password box; `shell.lock.toml` exists and controls its six supported colour tokens. Only layout and label-decoration controls remain unavailable, so there is no per-row label mechanism to port to. The banner still opens the machine — the boot splash and the login screen are untouched by Omarchy 4 and draw it from `unlock.png`.
 - **The bar and the launcher.** Both are Omarchy 4's own now, with generated `shell.bar.toml` and `shell.launcher.toml` section overrides. The bar uses the accent for attention; the launcher has a muted container and an accent frame around the selected row. Its schema exposes colour and alpha fields, not label decoration.
 - **`omarchy-launch-walker`.** The command no longer exists, so its shim went with it.
 
@@ -563,12 +572,12 @@ The per-monitor wallpaper tooling drives `swaybg` directly and never went throug
 
 - **herdr.** `~/.config/herdr/config.toml` has no `[theme]` section, so the terminal workspace manager falls back to its built-in catppuccin — purple and blue against the rice. Themeable via `[theme]` / `[theme.custom]`.
 - **aether.** `~/.config/aether/theme.css` hardcodes `@define-color accent_bg_color #7aa2f7` (blue), and every override in `theme.override.css` is commented out. Aether is not in Omarchy's theme pipeline, so it needs wiring by hand or by a `theme-set` hook.
-- **fastfetch.** The logo now uses ANSI `yellow`, which is `color3` and therefore the accent, so it follows the theme with no per-theme file. The Hardware section's `keyColor` is still `green` (`color2`, the olive `#8a9d33`) — the only remaining off-ramp colour there, since `blue` and `magenta` both map into the gold ramp.
-- **Wallpaper resolution.** Every shipped photo is at most 736px wide. The blur-fill companions make the framing work on a landscape screen, but they cannot add detail that is not in the source — the sharp centre panel is still an upscale.
+- **fastfetch.** The logo uses ANSI `yellow` (`color3`), the subdued yellow role `#c4b28a`, so it follows the terminal palette with no per-theme file. The Hardware section's `keyColor` remains `green` (`color2`, `#8a9a7b`); `blue` and `magenta` are now their distinct ANSI roles, `#8ba4b0` and `#a292a3`, rather than gold-ramp aliases.
+- **Wallpaper resolution.** Original source assets and generated blur-fill companions are distinct: most older source photos are at most 736px wide, while `00-zwarte-topografie.jpg` and `00-zwarte-zuilen.jpg` are 3840×2160 landscape sources. Companions make the framing work across screen shapes, but cannot add detail to a lower-resolution source — its sharp centre panel is still an upscale.
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
 - **VS Code.** Currently points at Gruvbox Dark Medium / Hard. Close in tone, not exact.
 - **Preview images.** `preview-unlock.png` is still missing, so the themes do not appear in Omarchy's unlocks menu — that menu lists only themes that ship one.
-- **The shell layer on Omarchy 4.** The themes and the Hyprland configuration are ready; the lock screen has no `shell.lock.toml`, while the bar and launcher use the generated overrides described in [The launcher and the bar](#the-launcher-and-the-bar).
+- **The shell layer on Omarchy 4.** The themes and the Hyprland configuration are ready. `shell.lock.toml` is present and controls the lock screen's six supported colour tokens; only layout and label-decoration controls remain unavailable. The bar and launcher use the generated overrides described in [The launcher and the bar](#the-launcher-and-the-bar).
 - **Per-monitor wallpapers on Omarchy 4.** `swaybg` is retired there and the background moves inside the shell, so the split needs `swaybg` reinstalled, `omarchy.background` disabled, and the watch pointed at `~/.local/state/omarchy/current/background`.
 - **Middle-click autoscroll.** The `hypr-autoscroll` plugin and its binding are commented out in `config/hypr/`. hyprpm builds against a specific Hyprland commit and refuses to load when the two drift; until `hyprpm reload` succeeds, an unloaded plugin's dispatcher is a config error on every reload.
 
