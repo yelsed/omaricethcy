@@ -6,7 +6,7 @@
 background                = "#181716"
 background-alpha          = 0.94
 text                      = "#f0e3d5"
-# The muted border gives the launcher a visible, restrained container.
+# The muted border gives the surface a visible, restrained container.
 border                    = "#4a4541"
 border-alpha              = 0.80
 scrim                     = "#181716"

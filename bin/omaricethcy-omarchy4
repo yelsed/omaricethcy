@@ -276,16 +276,17 @@ size-vertical    = 28
 """
 
 
-def shell_launcher_toml(palette):
-    return f"""# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+def shell_framed_surface_toml(section, palette, background_alpha):
+    """Generate a complete Omarchy shell surface with a restrained selection frame."""
+    return f"""# Replaces the [{section}] section of Omarchy 4's generated shell.toml. A section
 # override replaces the whole section, so every key the generated one sets is
 # repeated here even where the value is unchanged.
 
-[launcher]
+[{section}]
 background                = "{palette['background']}"
-background-alpha          = 0.94
+background-alpha          = {background_alpha}
 text                      = "{palette['foreground']}"
-# The muted border gives the launcher a visible, restrained container.
+# The muted border gives the surface a visible, restrained container.
 border                    = "{palette['muted']}"
 border-alpha              = 0.80
 scrim                     = "{palette['background']}"
@@ -297,6 +298,14 @@ selected-text             = "{palette['accent']}"
 selected-border           = "{palette['accent']}"
 selected-border-alpha     = 1.0
 """
+
+
+def shell_launcher_toml(palette):
+    return shell_framed_surface_toml("launcher", palette, 0.94)
+
+
+def shell_menu_toml(palette):
+    return shell_framed_surface_toml("menu", palette, 1.0)
 
 
 def migrate(theme_dir, check):
@@ -318,6 +327,7 @@ def migrate(theme_dir, check):
         "hyprland.lua": hyprland_lua(palette, theme_dir.name),
         "shell.bar.toml": shell_bar_toml(palette),
         "shell.launcher.toml": shell_launcher_toml(palette),
+        "shell.menu.toml": shell_menu_toml(palette),
     }
 
     print(theme_dir.name)

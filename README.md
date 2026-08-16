@@ -156,7 +156,7 @@ themes/<name>/
 ├── shell.lock.toml       the six colours the lock screen exposes
 ├── shell.bar.toml        generated bar override; attention uses the accent
 ├── shell.launcher.toml   generated muted container and selected-row accent frame
-├── icons.theme           GTK icon theme name
+├── shell.menu.toml       generated Super+Space menu frame and selected-row treatment
 ├── vscode.json           VS Code theme name and extension id
 ├── neovim.lua            LazyVim colorscheme spec
 ├── unlock.png            the banner, for the boot splash and the login screen
@@ -423,9 +423,9 @@ omarchy plymouth set-by-theme gloed   # asks for sudo, rebuilds initramfs
 
 `omarchy-refresh-sddm` restores the stock login theme and undoes this; the next theme switch puts it back.
 
-### The launcher and the bar
+### The menu, launcher, and bar
 
-Omarchy 4 provides both surfaces, and the themes ship generated overrides for their colour treatment. Because a section override replaces the whole generated section, the bar and launcher files repeat every supported key: the bar makes attention the accent, while the launcher has a muted container and accent-framed selected row. The bar's layout is still yours, in `~/.config/omarchy/shell.json`; there is no launcher label-decoration key to override.
+Omarchy 4 provides all three surfaces, and the themes ship generated overrides for their colour treatment. Because a section override replaces the whole generated section, the bar, launcher, and menu files repeat every supported key: the bar makes attention the accent, while the launcher and Super+Space menu have muted containers and accent-framed selected rows. The bar's layout is still yours, in `~/.config/omarchy/shell.json`; there is no launcher or menu label-decoration key to override.
 
 ### Theme previews
 

@@ -1,10 +1,10 @@
-# Replaces the [launcher] section of Omarchy 4's generated shell.toml. A section
+# Replaces the [menu] section of Omarchy 4's generated shell.toml. A section
 # override replaces the whole section, so every key the generated one sets is
 # repeated here even where the value is unchanged.
 
-[launcher]
+[menu]
 background                = "#181716"
-background-alpha          = 0.94
+background-alpha          = 1.0
 text                      = "#ede4c8"
 # The muted border gives the surface a visible, restrained container.
 border                    = "#4a4541"
