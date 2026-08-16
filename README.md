@@ -199,15 +199,29 @@ Each theme carries its own set, split by dominant hue so neither theme shows the
 
 | goud | gloed |
 |---|---|
-| `goudwater` glowing caustics | `stripstad` comic night city, red sky |
-| `goudstrepen` blurred gold stripes | `rode-bar` terracotta bar interior |
-| `zandloper` hourglass gradient | `avondwolken` white cloud, orange sky |
-| `doolhoflijnen` yellow maze lines | `halftoon-bergen` halftone dot mountains |
-| `straatlantaarns` amber street lamps | `woestijnwolk` storm cloud over cactus |
-| `otter-poster` Zoo Praha vydra print | `bergtop` dark peak, orange sky |
-| `batman-silhouet` | `wolkenzee` golden sea of clouds |
-| `gele-auto` | `gloed-verloop`, `gloed-kern` generated gradients |
-| `rubberplant` | |
+| `00-zwarte-topografie.jpg` | `00-zwarte-zuilen.jpg` |
+| `batman-silhouet.jpeg` | `avondwolken.jpeg` |
+| `gele-auto.jpeg` | `woestijnwolk.jpeg` |
+| `rubberplant.jpeg` | |
+
+The following formerly documented background paths are intentionally absent and are not selectable from the picker:
+
+| Theme | Removed background path |
+|---|---|
+| goud | `themes/goud/backgrounds/doolhoflijnen.jpeg` |
+| goud | `themes/goud/backgrounds/goudstrepen.jpeg` |
+| goud | `themes/goud/backgrounds/goudwater.jpeg` |
+| goud | `themes/goud/backgrounds/otter-poster.jpeg` |
+| goud | `themes/goud/backgrounds/straatlantaarns.jpeg` |
+| goud | `themes/goud/backgrounds/zandloper.jpeg` |
+| gloed | `themes/gloed/backgrounds/bergtop.jpeg` |
+| gloed | `themes/gloed/backgrounds/gloed-kern.jpg` |
+| gloed | `themes/gloed/backgrounds/gloed-verloop.jpg` |
+| gloed | `themes/gloed/backgrounds/halftoon-bergen.jpeg` |
+| gloed | `themes/gloed/backgrounds/rode-bar.jpeg` |
+| gloed | `themes/gloed/backgrounds/stripstad.jpeg` |
+| gloed | `themes/gloed/backgrounds/wallhaven-49dyqx_2560x1440.png` |
+| gloed | `themes/gloed/backgrounds/wolkenzee.jpeg` |
 
 #### Source inventory
 
