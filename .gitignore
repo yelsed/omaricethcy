@@ -15,3 +15,6 @@ __pycache__/
 
 # Local contact sheet from omaricethcy-landscape
 wallpaper-check.png
+
+# Ticket board: lives in the vault on paperclip, mounted here by omaricethcy-backlog.service
+backlog/
