@@ -6,10 +6,25 @@
 -- here are 1x, and a 2 would render every GTK application at double size.
 hl.env("GDK_SCALE", "1")
 
--- DP-2: LG UltraGear 1440p 165Hz, landscape, primary.
-hl.monitor({ output = "DP-2", mode = "preferred", position = "0x0", scale = 1 })
+-- Both panels are LG UltraGears, and their DP connector numbers move between
+-- boots, so they are matched on the description shown by `hyprctl monitors all`
+-- rather than on DP-2/DP-3.
 
--- DP-3: LG UltraGear 1080p 144Hz, stood on its right edge. transform 3 is 270°,
--- so the panel's 1920x1080 presents as 1080x1920 and sits to the right of DP-2
--- at DP-2's full width.
-hl.monitor({ output = "DP-3", mode = "preferred", position = "2560x0", scale = 1, transform = 3 })
+-- 1440p 165Hz, landscape, primary.
+hl.monitor({
+  output = "desc:LG Electronics LG ULTRAGEAR 212MADHBHF58",
+  mode = "preferred",
+  position = "0x0",
+  scale = 1,
+})
+
+-- 1080p 100Hz, stood on its right edge. transform 3 is 270°, so the panel's
+-- 1920x1080 presents as 1080x1920 and sits to the right of the 1440p at its
+-- full width.
+hl.monitor({
+  output = "desc:LG Electronics LG ULTRAGEAR 0x0007E98B",
+  mode = "preferred",
+  position = "2560x0",
+  scale = 1,
+  transform = 3,
+})

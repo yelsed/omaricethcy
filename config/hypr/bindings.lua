@@ -25,3 +25,10 @@ o.bind("SUPER + SHIFT + T", "Activity", { tui = "btop" })
 -- The Omarchy 3 form was:
 --   bindd = SUPER, A, Toggle middle-button autoscroll, hypr-autoscroll:middle-mode, toggle
 -- SUPER + A is free in Omarchy 4, so no unbind is needed when this comes back.
+
+-- Dictation keys from before Alt + Space and Right Alt became the defaults.
+-- Remove these lines to give the keys back to applications.
+if o.dictation_installed and o.dictation_installed() then
+  o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")
+  o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")
+end
