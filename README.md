@@ -25,6 +25,7 @@ One command. Every step is idempotent, and anything outside this repository is b
 | Tools | Links `bin/omaricethcy-*` into `~/.local/bin` |
 | Cursors | Builds a cursor theme in each theme's accent and installs `hooks/70-omaricethcy-cursor.sh` so the pointer follows a theme change |
 | Boot splash | Installs `hooks/80-omaricethcy-unlock.sh`, which syncs the Plymouth and SDDM logo with the active theme. Does not run the sync itself — it needs sudo and rebuilds the initramfs. |
+| herdr and aether | Installs `hooks/90-omaricethcy-apps.sh` and runs it once. On every theme switch it writes the palette into herdr's `[theme]` tables (base theme `terminal`, plus the accent and row highlights) and into aether's `theme.override.css`. Other settings in herdr's `config.toml` are kept. |
 | Shader | Links `templates/shader.glsl.tpl` into `~/.config/omarchy/themed/`, where Omarchy renders it into whichever theme is active. `omaricethcy-shader` turns it off and on. |
 | Ghostty | Adds the `config-file` line for the theme palette and points `custom-shader` at the theme's shader. Warns if a hardcoded `theme =` line is still overriding the rice. |
 | Default terminal | Puts Ghostty first in `~/.config/xdg-terminals.list` and registers `x-scheme-handler/terminal` |
@@ -576,8 +577,6 @@ The per-monitor wallpaper tooling drives `swaybg` directly and never went throug
 
 ## Roadmap
 
-- **herdr.** `~/.config/herdr/config.toml` has no `[theme]` section, so the terminal workspace manager falls back to its built-in catppuccin — purple and blue against the rice. Themeable via `[theme]` / `[theme.custom]`.
-- **aether.** `~/.config/aether/theme.css` hardcodes `@define-color accent_bg_color #7aa2f7` (blue), and every override in `theme.override.css` is commented out. Aether is not in Omarchy's theme pipeline, so it needs wiring by hand or by a `theme-set` hook.
 - **fastfetch.** The logo uses ANSI `yellow` (`color3`), the subdued yellow role `#c4b28a`, so it follows the terminal palette with no per-theme file. The Hardware section's `keyColor` remains `green` (`color2`, `#8a9a7b`); `blue` and `magenta` are now their distinct ANSI roles, `#8ba4b0` and `#a292a3`, rather than gold-ramp aliases.
 - **Wallpaper resolution.** Original source assets and generated blur-fill companions are distinct: `avondwolken`, `woestijnwolk`, `batman-silhouet` and `rubberplant` are 736px wide; every other source is at least 1920px. Companions make the framing work across screen shapes, but cannot add detail to a lower-resolution source — its sharp centre panel is still an upscale.
 - **neovim.** Currently Gruvbox with the palette substituted via `palette_overrides`. A bespoke colorscheme is a later round.
