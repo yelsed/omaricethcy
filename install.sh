@@ -63,7 +63,7 @@ fi
 # targets 4; on 3 it would link a set of files nothing reads.
 if [[ ! -f $HOME/.config/hypr/hyprland.lua ]]; then
   echo "This needs Omarchy 4: ~/.config/hypr/hyprland.lua was not found." >&2
-  echo "On Omarchy 3, check out the branch before feat/omarchy-quattro." >&2
+  echo "On Omarchy 3, check out the tag omarchy-3: git checkout omarchy-3" >&2
   exit 1
 fi
 

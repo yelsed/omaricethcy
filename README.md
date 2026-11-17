@@ -491,7 +491,7 @@ Not yet shipped, and optional: `preview-unlock.png` (the unlocks menu thumbnail,
 
 ## On Omarchy 4
 
-Omarchy 4 rewrote three things this rice was built on. It now targets 4 only; the Omarchy 3 layer lives on the branch before `feat/omarchy-quattro`.
+Omarchy 4 rewrote three things this rice was built on. It now targets 4 only; the Omarchy 3 layer lives at the tag `omarchy-3` (`git checkout omarchy-3`).
 
 | | Omarchy 3 | Omarchy 4 |
 |---|---|---|
