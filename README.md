@@ -211,8 +211,10 @@ Each theme carries its own set, split by dominant hue so neither theme shows the
 |---|---|
 | `00-zwarte-topografie.jpg` | `00-zwarte-zuilen.jpg` |
 | `batman-silhouet.jpeg` | `avondwolken.jpeg` |
-| `gele-auto.jpeg` | `woestijnwolk.jpeg` |
-| `rubberplant.jpeg` | |
+| `gele-auto.jpeg` | `mandarijnen.jpg` |
+| `rubberplant.jpeg` | `oranje-raam.jpg` |
+| | `vogelzwerm.jpg` |
+| | `woestijnwolk.jpeg` |
 
 The following formerly documented background paths are intentionally absent and are not selectable from the picker:
 
@@ -239,6 +241,9 @@ The following formerly documented background paths are intentionally absent and 
 |---|---|---|---|---|---|
 | `00-zwarte-topografie.jpg` | goud | jonakoh _ | https://unsplash.com/photos/abstract-dark-landscape-with-textured-mountain-peaks-HxtvH28DSVM | Unsplash License | 3840×2160 |
 | `00-zwarte-zuilen.jpg` | gloed | Andrew Kliatskyi | https://unsplash.com/photos/dark-textured-surface-with-many-small-raised-elements-Jnad8DyoQzo | Unsplash License | 3840×2160 |
+| `mandarijnen.jpg` | gloed | Hoyoung Choi | https://unsplash.com/photos/4XoCxdMnWFg | Unsplash License | 1920×2880 (from 3456×5184) |
+| `oranje-raam.jpg` | gloed | Tem Rysh | https://unsplash.com/photos/0-eT-ApZmUw | Unsplash License | 2160×2880 (from 3264×4352) |
+| `vogelzwerm.jpg` | gloed | Martin Woortman | https://unsplash.com/photos/Wtr39iVfzpw | Unsplash License | 1920×2880 (from 3201×4801) |
 
 ### Per-monitor wallpapers
 
