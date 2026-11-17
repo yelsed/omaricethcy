@@ -183,8 +183,9 @@ note "linked 80-omaricethcy-unlock.sh into $HOOK_DIR"
 # on every switch; run once here so they match the theme that is already active.
 say "Theming herdr and aether"
 ln -sf "$REPOSITORY_DIR/hooks/90-omaricethcy-apps.sh" "$HOOK_DIR/90-omaricethcy-apps.sh"
-"$REPOSITORY_DIR/hooks/90-omaricethcy-apps.sh"
 note "linked 90-omaricethcy-apps.sh into $HOOK_DIR"
+"$REPOSITORY_DIR/hooks/90-omaricethcy-apps.sh" ||
+  note "warning: herdr and aether not themed yet; the hook retries on the next theme switch"
 
 # ── Hyprland configuration ───────────────────────────────────────────────────
 # The whole personal layer is linked out of this repository, so a fresh machine

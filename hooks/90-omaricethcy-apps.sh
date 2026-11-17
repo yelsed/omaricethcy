@@ -26,17 +26,25 @@ if [[ -d ${herdr_config%/*} ]]; then
 import pathlib
 import re
 import sys
+import tomllib
 
 path = pathlib.Path(sys.argv[1])
 text = path.read_text() if path.exists() else ""
 
+def is_theme(name):
+    name = name.replace('"', "").replace("'", "").replace(" ", "")
+    return name == "theme" or name.startswith("theme.")
+
 kept = []
 in_theme_table = False
+before_first_table = True
 for line in text.splitlines():
-    header = re.match(r"\s*\[\[?\s*([^\]\s]+)\s*\]", line)
+    header = re.match(r"\s*\[\[?([^\]]+)\]", line)
     if header:
-        name = header.group(1)
-        in_theme_table = name == "theme" or name.startswith("theme.")
+        before_first_table = False
+        in_theme_table = is_theme(header.group(1))
+    elif before_first_table and re.match(r"\s*[\"']?theme[\"']?\s*[.=]", line):
+        continue
     if not in_theme_table:
         kept.append(line)
 
@@ -52,7 +60,12 @@ accent = "$accent"
 selection_bg = "$selection"
 active_row_bg = "$lighter_background"
 """
-path.write_text("\n".join(kept) + "\n" + theme)
+result = "\n".join(kept) + "\n" + theme
+try:
+    tomllib.loads(result)
+except tomllib.TOMLDecodeError as error:
+    sys.exit(f"90-omaricethcy-apps: left {path} alone, the result would not parse: {error}")
+path.write_text(result)
 PY
   herdr server reload-config >/dev/null 2>&1 || true
 fi
