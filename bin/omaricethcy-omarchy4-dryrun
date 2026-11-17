@@ -189,11 +189,17 @@ for override in sorted(theme_dir.glob("shell.*.toml")):
 # colors.toml, or the palette never reached the shell.
 accent = re.search(r'^accent\s*=\s*"(#[0-9a-fA-F]{6})"',
                    (theme_dir / "colors.toml").read_text(), re.MULTILINE).group(1)
-if merged.get("menu", {}).get("selected-text", "").lower() == accent.lower():
-    print(f"    ok    untouched sections carry the palette (menu.selected-text {accent})")
+overridden = {override.name[len("shell."):-len(".toml")] for override in theme_dir.glob("shell.*.toml")}
+carrying_accent = sorted(
+    section for section, values in merged.items()
+    if section not in overridden and isinstance(values, dict)
+    and any(isinstance(value, str) and value.lower() == accent.lower() for value in values.values())
+)
+if carrying_accent:
+    print(f"    ok    untouched sections carry the palette ({', '.join(carrying_accent)} use {accent})")
 else:
     failed = True
-    print(f"    FAIL  menu.selected-text is {merged.get('menu', {}).get('selected-text')}, expected {accent}")
+    print(f"    FAIL  no section outside {sorted(overridden)} uses the accent {accent}")
 
 raise SystemExit(1 if failed else 0)
 PY

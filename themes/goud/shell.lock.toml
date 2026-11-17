@@ -2,6 +2,7 @@
 # theme switch, so this stays short. Six colours is the whole surface the lock
 # screen exposes; see the README for what that does and does not reach.
 
+[lock]
 text             = "#ede4c8"
 placeholder      = "#ede4c8"
 text-error       = "#d85e40"

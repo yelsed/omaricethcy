@@ -5,7 +5,7 @@
 #   omaricethcy-bg restore        re-apply this theme's stored selection only
 #   omaricethcy-bg next           advance every screen to its next wallpaper
 #   omaricethcy-bg previous       step back
-#   omaricethcy-bg set <stem>     pick one, e.g. `set gouden-koepel`
+#   omaricethcy-bg set <stem>     pick one, e.g. `set vogelzwerm`
 #   omaricethcy-bg list           show what is available and what is showing
 #
 # Omarchy runs `swaybg -i <one image> -m fill` for every output at once, which
