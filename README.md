@@ -211,7 +211,7 @@ Each theme carries its own set, split by dominant hue so neither theme shows the
 |---|---|
 | `00-zwarte-topografie.jpg` | `00-zwarte-zuilen.jpg` |
 | `batman-silhouet.jpeg` | `avondwolken.jpeg` |
-| `gele-auto.jpeg` | `mandarijnen.jpg` |
+| `peugeot.jpeg` | `mandarijnen.jpg` |
 | `rubberplant.jpeg` | `oranje-raam.jpg` |
 | | `vogelzwerm.jpg` |
 | | `woestijnwolk.jpeg` |
@@ -304,7 +304,7 @@ Three approaches that were tried and discarded:
 
 ```bash
 omaricethcy-bg next          # SUPER SHIFT W, once you uncomment it in bindings.lua
-omaricethcy-bg set zandloper
+omaricethcy-bg set vogelzwerm
 omaricethcy-bg list
 omaricethcy-companions       # rebuild companions, e.g. after adding photos
 ```
