@@ -178,6 +178,15 @@ say "Installing the boot splash hook"
 ln -sf "$REPOSITORY_DIR/hooks/80-omaricethcy-unlock.sh" "$HOOK_DIR/80-omaricethcy-unlock.sh"
 note "linked 80-omaricethcy-unlock.sh into $HOOK_DIR"
 
+# ── herdr and aether ─────────────────────────────────────────────────────────
+# Neither is in Omarchy's theme pipeline. The hook writes the palette into both
+# on every switch; run once here so they match the theme that is already active.
+say "Theming herdr and aether"
+ln -sf "$REPOSITORY_DIR/hooks/90-omaricethcy-apps.sh" "$HOOK_DIR/90-omaricethcy-apps.sh"
+note "linked 90-omaricethcy-apps.sh into $HOOK_DIR"
+"$REPOSITORY_DIR/hooks/90-omaricethcy-apps.sh" ||
+  note "warning: herdr and aether not themed yet; the hook retries on the next theme switch"
+
 # ── Hyprland configuration ───────────────────────────────────────────────────
 # The whole personal layer is linked out of this repository, so a fresh machine
 # gets the monitors, the input tuning, the extra bindings and the window rules
